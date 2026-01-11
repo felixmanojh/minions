@@ -3,15 +3,20 @@
 
 from __future__ import annotations
 
-import argparse
-import json
-from pathlib import Path
-from typing import List
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+# Auto-bootstrap venv and dependencies
+from llm_gc.bootstrap import ensure_venv
+ensure_venv()
+
+import argparse
+import json
+from typing import List
 
 from llm_gc.orchestrator.m1_chat import run_chat
 from llm_gc.skill import parse_read_requests
