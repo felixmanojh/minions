@@ -1,3 +1,5 @@
+# Minions project
+
 """Local Multi LLM group chat package."""
 
 __all__ = ["__version__"]

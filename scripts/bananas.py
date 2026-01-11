@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+# Minions project
+
 """CLI for banana stats 🍌 - Track your minion productivity!"""
 
 from __future__ import annotations

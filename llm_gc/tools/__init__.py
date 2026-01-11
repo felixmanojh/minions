@@ -1,3 +1,5 @@
+# Minions project
+
 """Utility tools for repo-aware context gathering."""
 
 from .diff_generator import FileDiff, generate_diff, generate_multi_diff, generate_patch_from_files

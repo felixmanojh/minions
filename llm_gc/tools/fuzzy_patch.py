@@ -1,3 +1,5 @@
+# Minions project
+
 """Fuzzy patch application using google-diff-match-patch."""
 
 from __future__ import annotations

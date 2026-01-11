@@ -6,6 +6,7 @@ import textwrap
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+import uuid
 from pathlib import Path
 
 from llm_gc.config import load_models
@@ -69,7 +70,7 @@ class PatchExecutor:
         self.repo_map: RepoMap | None = None
         self.summary_chars = summary_chars
         self.context_snippets: list[ContextSnippet] = []
-        self.session_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S-patch")
+        self.session_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S") + f"-{uuid.uuid4().hex[:6]}"
         self.target_files = [Path(f) for f in (target_files or [])]
         self._prepare_context(read_requests or [])
 
