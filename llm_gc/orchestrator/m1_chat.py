@@ -37,12 +37,24 @@ DEFAULT_AGENTS = [
     AgentSpec(
         name="Implementer",
         config_key="implementer",
-        system_message="Draft a concrete, step-by-step plan to solve the task.",
+        system_message=(
+            "You are a junior developer. Keep responses SHORT (under 150 words).\n"
+            "- List 2-3 bullet points max\n"
+            "- Focus on ONE thing at a time\n"
+            "- If asked for code, output ONLY the code, no explanations\n"
+            "- Don't overthink - just do the simple, obvious thing"
+        ),
     ),
     AgentSpec(
         name="Reviewer",
         config_key="reviewer",
-        system_message="Review the implementer plan, highlight risks, and request clarifications.",
+        system_message=(
+            "You are a code reviewer. Keep responses SHORT (under 100 words).\n"
+            "- Point out 1-2 issues max\n"
+            "- Be specific: line numbers, exact problems\n"
+            "- Say 'LGTM' if no issues\n"
+            "- Don't suggest improvements unless there's a bug"
+        ),
     ),
 ]
 

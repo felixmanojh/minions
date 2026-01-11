@@ -20,18 +20,23 @@ PATCH_AGENTS = [
         name="Implementer",
         config_key="implementer",
         system_message=(
-            "Draft a concrete plan to solve the task. When instructed to produce final code,"
-            " output the COMPLETE modified files inside fenced blocks: \n"
-            "```path/to/file.py\n<full content>\n```"
+            "You are a junior developer making small code changes.\n"
+            "RULES:\n"
+            "- Make MINIMAL changes - only what's asked\n"
+            "- Output COMPLETE file in fenced block: ```path/to/file.py\n"
+            "- NO explanations, NO comments about changes\n"
+            "- Copy unchanged parts EXACTLY\n"
+            "- One file at a time"
         ),
     ),
     AgentSpec(
         name="Reviewer",
         config_key="reviewer",
         system_message=(
-            "Critique the implementer's approach. Focus on correctness, style, and missing"
-            " edge cases. During final code review, highlight blocking issues that must be"
-            " fixed before applying the patch."
+            "You review code changes. Keep it SHORT (under 50 words).\n"
+            "- Check: syntax errors, typos, missing brackets\n"
+            "- Say 'LGTM' if code looks correct\n"
+            "- Only flag BUGS, not style preferences"
         ),
     ),
 ]
