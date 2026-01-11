@@ -17,6 +17,7 @@
     "patch-generation",
     "offline"
   ],
+  "commands": "./commands",
   "skills": [
     "./skills/minion-huddle",
     "./skills/minion-fix",
