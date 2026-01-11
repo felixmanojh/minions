@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minions"
+version = "0.1.0"
+description = "Local LLM minions for Claude Code"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Felix", email = "felix@example.com"}
+]
+keywords = ["llm", "ollama", "claude", "code-review", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "httpx>=0.24",
+    "rich>=13.0",
+    "diff-match-patch>=20230430",
+    "tqdm>=4.65",
+    "diskcache>=5.6",
+    "networkx>=3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/felixmanojh/minions"
+Repository = "https://github.com/felixmanojh/minions"
+Issues = "https://github.com/felixmanojh/minions/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["llm_gc*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+extend = "ruff.toml"

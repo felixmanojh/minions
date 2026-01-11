@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List
 
 try:
     from grep_ast import grep
@@ -21,7 +20,7 @@ class RepoSymbol:
 
 @dataclass
 class RepoMap:
-    symbols: List[RepoSymbol]
+    symbols: list[RepoSymbol]
 
     def as_text(self) -> str:
         lines = []
@@ -40,7 +39,7 @@ def build_repomap(root: str | Path) -> RepoMap:
     root_path = Path(root).resolve()
     if grep is None:
         return RepoMap(symbols=[])
-    symbols: List[RepoSymbol] = []
+    symbols: list[RepoSymbol] = []
     for lang, data in SUPPORTED_LANGS.items():
         matcher = data["matcher"]
         extensions = data["extensions"]

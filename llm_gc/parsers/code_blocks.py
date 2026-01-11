@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
-from typing import Iterable, Iterator, List
 
 BLOCK_PATTERN = re.compile(
     r"```(?P<path>[^\n`]+)\n(?P<content>.+?)```",
@@ -21,10 +20,10 @@ class FileChange:
     content: str
 
 
-def parse_file_blocks(response: str) -> List[FileChange]:
+def parse_file_blocks(response: str) -> list[FileChange]:
     """Parse ```path\ncontent``` blocks from an LLM response."""
 
-    changes: List[FileChange] = []
+    changes: list[FileChange] = []
     for match in BLOCK_PATTERN.finditer(response or ""):
         raw_path = match.group("path").strip()
         content = match.group("content")

@@ -9,14 +9,11 @@ Role mapping:
 from __future__ import annotations
 
 import os
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import yaml
-
 
 ROLE_IMPLEMENTER = "implementer"
 ROLE_REVIEWER = "reviewer"
@@ -34,10 +31,24 @@ DIFF_MARKERS = [
 
 # File extensions that suggest patcher when combined with action words
 CODE_EXTENSIONS = [
-    ".py", ".ts", ".js", ".tsx", ".jsx",
-    ".go", ".rs", ".java", ".kt", ".swift",
-    ".c", ".cpp", ".h", ".hpp",
-    ".rb", ".php", ".cs", ".scala",
+    ".py",
+    ".ts",
+    ".js",
+    ".tsx",
+    ".jsx",
+    ".go",
+    ".rs",
+    ".java",
+    ".kt",
+    ".swift",
+    ".c",
+    ".cpp",
+    ".h",
+    ".hpp",
+    ".rb",
+    ".php",
+    ".cs",
+    ".scala",
 ]
 
 # Signals that strengthen patcher intent
@@ -55,20 +66,20 @@ PATCHER_SIGNALS = [
 @dataclass(frozen=True)
 class RoleModels:
     primary: str
-    fallbacks: List[str]
+    fallbacks: list[str]
 
 
 @dataclass(frozen=True)
 class RoutingRules:
-    patcher_keywords: List[str]
-    reviewer_keywords: List[str]
-    implementer_keywords: List[str]
+    patcher_keywords: list[str]
+    reviewer_keywords: list[str]
+    implementer_keywords: list[str]
 
 
 @dataclass(frozen=True)
 class ModelConfig:
     preset: str
-    roles: Dict[str, RoleModels]
+    roles: dict[str, RoleModels]
     routing: RoutingRules
 
 
@@ -79,7 +90,7 @@ def load_model_config(path: str | Path | None = None) -> ModelConfig:
 
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
-    roles: Dict[str, RoleModels] = {}
+    roles: dict[str, RoleModels] = {}
     for role, cfg in data.get("roles", {}).items():
         roles[role] = RoleModels(
             primary=str(cfg["primary"]),
@@ -116,7 +127,7 @@ def _has_patcher_signals(text: str) -> bool:
     return any(signal in text_lower for signal in PATCHER_SIGNALS)
 
 
-def _handle_fix_keyword(text: str, rules: RoutingRules) -> Optional[str]:
+def _handle_fix_keyword(text: str, rules: RoutingRules) -> str | None:
     """Smart handling of 'fix' which is ambiguous.
 
     Rules:
@@ -182,7 +193,7 @@ def infer_role(user_request: str, rules: RoutingRules) -> str:
     return ROLE_IMPLEMENTER
 
 
-def apply_env_override(role: str, candidates: List[str]) -> List[str]:
+def apply_env_override(role: str, candidates: list[str]) -> list[str]:
     """Apply environment variable overrides for model selection.
 
     Supports:
@@ -214,7 +225,7 @@ def choose_model_for_role(role: str, cfg: ModelConfig) -> str:
     return cfg.roles[role].primary
 
 
-def choose_model_candidates_for_role(role: str, cfg: ModelConfig) -> List[str]:
+def choose_model_candidates_for_role(role: str, cfg: ModelConfig) -> list[str]:
     """Get all model candidates for a role (primary + fallbacks)."""
     if role not in cfg.roles:
         role = ROLE_IMPLEMENTER
@@ -226,6 +237,7 @@ def validate_model_available(model: str) -> bool:
     """Check if a model is available locally in Ollama."""
     try:
         import httpx
+
         resp = httpx.get("http://127.0.0.1:11434/api/tags", timeout=5.0)
         if resp.status_code != 200:
             return False
@@ -237,7 +249,7 @@ def validate_model_available(model: str) -> bool:
         return False
 
 
-def validate_models(candidates: List[str]) -> Tuple[List[str], List[str]]:
+def validate_models(candidates: list[str]) -> tuple[list[str], list[str]]:
     """Validate which models are available locally.
 
     Returns:
@@ -253,7 +265,7 @@ def validate_models(candidates: List[str]) -> Tuple[List[str], List[str]]:
     return available, missing
 
 
-def route(user_request: str, cfg_path: str | Path | None = None) -> Tuple[str, List[str]]:
+def route(user_request: str, cfg_path: str | Path | None = None) -> tuple[str, list[str]]:
     """Route a user request to a role and return model candidates.
 
     Args:
@@ -274,7 +286,7 @@ def route_with_validation(
     user_request: str,
     cfg_path: str | Path | None = None,
     log: bool = True,
-) -> Tuple[str, str, List[str]]:
+) -> tuple[str, str, list[str]]:
     """Route and validate models, with optional logging.
 
     Args:
@@ -292,7 +304,10 @@ def route_with_validation(
     available, missing = validate_models(candidates)
 
     if log:
-        print(f"Role: {role.capitalize()}, Model: {available[0] if available else 'NONE'}", file=sys.stderr)
+        print(
+            f"Role: {role.capitalize()}, Model: {available[0] if available else 'NONE'}",
+            file=sys.stderr,
+        )
 
     if not available:
         missing_str = ", ".join(missing)
@@ -308,7 +323,7 @@ def route_with_validation(
     return role, available[0], candidates
 
 
-def route_explicit(role: str, cfg_path: str | Path | None = None) -> List[str]:
+def route_explicit(role: str, cfg_path: str | Path | None = None) -> list[str]:
     """Get model candidates for an explicit role.
 
     Args:

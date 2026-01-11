@@ -2,33 +2,40 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Callable, List, Optional
 import sys
 import time
+from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass, field
 
+try:
+    from tqdm import tqdm
+
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
+
+from llm_gc.bananas import add_bananas, celebrate, get_bananas
 from llm_gc.orchestrator.m1_chat import run_chat
 from llm_gc.orchestrator.m3_patch import run_patch
 from llm_gc.skill import parse_read_requests
-from llm_gc.bananas import add_bananas, celebrate, get_bananas
 
 
 @dataclass
 class MinionTask:
     """A single task for a minion."""
+
     description: str
     kind: str = "chat"  # "chat" or "patch"
-    target: Optional[str] = None
-    context_files: List[str] = field(default_factory=list)
+    target: str | None = None
+    context_files: list[str] = field(default_factory=list)
     repo_root: str = "."
     rounds: int = 2  # Fewer rounds for speed
     retries: int = 0
     max_retries: int = 2
     status: str = "pending"
-    result: Optional[str] = None
-    error: Optional[str] = None
+    result: str | None = None
+    error: str | None = None
 
 
 def simplify_prompt(prompt: str, retry_count: int) -> str:
@@ -108,42 +115,48 @@ class Swarm:
         max_retries: int = 2,
         rounds: int = 2,
         repo_root: str = ".",
+        show_progress: bool = True,
     ):
         self.workers = workers
         self.max_retries = max_retries
         self.rounds = rounds
         self.repo_root = repo_root
-        self.tasks: List[MinionTask] = []
-        self.completed: List[MinionTask] = []
-        self.failed: List[MinionTask] = []
+        self.show_progress = show_progress and TQDM_AVAILABLE
+        self.tasks: list[MinionTask] = []
+        self.completed: list[MinionTask] = []
+        self.failed: list[MinionTask] = []
 
-    def add_chat(self, description: str, context_files: List[str] = None) -> None:
+    def add_chat(self, description: str, context_files: list[str] = None) -> None:
         """Add a chat task to the swarm."""
-        self.tasks.append(MinionTask(
-            description=description,
-            kind="chat",
-            context_files=context_files or [],
-            repo_root=self.repo_root,
-            rounds=self.rounds,
-            max_retries=self.max_retries,
-        ))
+        self.tasks.append(
+            MinionTask(
+                description=description,
+                kind="chat",
+                context_files=context_files or [],
+                repo_root=self.repo_root,
+                rounds=self.rounds,
+                max_retries=self.max_retries,
+            )
+        )
 
     def add_patch(
         self,
         description: str,
         target: str,
-        context_files: List[str] = None,
+        context_files: list[str] = None,
     ) -> None:
         """Add a patch task to the swarm."""
-        self.tasks.append(MinionTask(
-            description=description,
-            kind="patch",
-            target=target,
-            context_files=context_files or [],
-            repo_root=self.repo_root,
-            rounds=self.rounds,
-            max_retries=self.max_retries,
-        ))
+        self.tasks.append(
+            MinionTask(
+                description=description,
+                kind="patch",
+                target=target,
+                context_files=context_files or [],
+                repo_root=self.repo_root,
+                rounds=self.rounds,
+                max_retries=self.max_retries,
+            )
+        )
 
     def run(self, on_progress: Callable[[str], None] = None) -> dict:
         """Execute all tasks with parallel workers and auto-retry.
@@ -152,7 +165,7 @@ class Swarm:
             dict with completed, failed, and stats
         """
         pending = list(self.tasks)
-        retry_queue: List[MinionTask] = []
+        retry_queue: list[MinionTask] = []
 
         total = len(pending)
         completed_count = 0
@@ -167,6 +180,16 @@ class Swarm:
 
         log(f"🍌 Swarm starting: {total} tasks, {self.workers} workers")
         start_time = time.time()
+
+        # Create progress bar if enabled
+        pbar = None
+        if self.show_progress:
+            pbar = tqdm(
+                total=total,
+                desc="🍌 Minions",
+                unit="task",
+                bar_format="{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+            )
 
         while pending or retry_queue:
             # Add retries to pending
@@ -206,31 +229,56 @@ class Swarm:
                         if task.status == "completed":
                             self.completed.append(task)
                             completed_count += 1
-                            log(f"  🍌 Done: {task.description[:40]}...")
+                            if pbar:
+                                pbar.update(1)
+                                pbar.set_postfix_str(f"✓ {task.description[:25]}...")
+                            else:
+                                log(f"  🍌 Done: {task.description[:40]}...")
                         elif task.status == "empty":
                             # Empty result, might retry
                             if task.retries < task.max_retries:
                                 task.retries += 1
                                 retry_queue.append(task)
                                 retry_count += 1
-                                log(f"  🔄 Retry {task.retries}: {task.description[:40]}...")
+                                if pbar:
+                                    pbar.set_postfix_str(f"↻ retry {task.retries}")
+                                else:
+                                    log(f"  🔄 Retry {task.retries}: {task.description[:40]}...")
                             else:
                                 self.failed.append(task)
                                 failed_count += 1
-                                log(f"  ❌ Empty: {task.description[:40]}...")
+                                if pbar:
+                                    pbar.update(1)
+                                    pbar.set_postfix_str("✗ empty")
+                                else:
+                                    log(f"  ❌ Empty: {task.description[:40]}...")
                         else:  # failed
                             if task.retries < task.max_retries:
                                 task.retries += 1
                                 retry_queue.append(task)
                                 retry_count += 1
-                                log(f"  🔄 Retry {task.retries}: {task.description[:40]}...")
+                                if pbar:
+                                    pbar.set_postfix_str(f"↻ retry {task.retries}")
+                                else:
+                                    log(f"  🔄 Retry {task.retries}: {task.description[:40]}...")
                             else:
                                 self.failed.append(task)
                                 failed_count += 1
-                                log(f"  ❌ Failed: {task.description[:40]}...")
+                                if pbar:
+                                    pbar.update(1)
+                                    pbar.set_postfix_str("✗ failed")
+                                else:
+                                    log(f"  ❌ Failed: {task.description[:40]}...")
                     except Exception as e:
                         failed_count += 1
-                        log(f"  ❌ Error: {e}")
+                        if pbar:
+                            pbar.update(1)
+                            pbar.set_postfix_str("✗ error")
+                        else:
+                            log(f"  ❌ Error: {e}")
+
+        if pbar:
+            pbar.close()
 
         elapsed = time.time() - start_time
 
@@ -257,15 +305,16 @@ class Swarm:
                 "elapsed_seconds": elapsed,
                 "bananas_earned": completed_count,
                 "bananas_total": get_bananas(),
-            }
+            },
         }
 
 
 def swarm_dispatch(
-    tasks: List[dict],
+    tasks: list[dict],
     workers: int = 5,
     max_retries: int = 2,
     repo_root: str = ".",
+    show_progress: bool = True,
 ) -> dict:
     """Convenience function to dispatch multiple tasks.
 
@@ -278,11 +327,17 @@ def swarm_dispatch(
         workers: Number of parallel workers
         max_retries: Max retries per task
         repo_root: Repository root path
+        show_progress: Show tqdm progress bar
 
     Returns:
         Results dict with completed, failed, and stats
     """
-    swarm = Swarm(workers=workers, max_retries=max_retries, repo_root=repo_root)
+    swarm = Swarm(
+        workers=workers,
+        max_retries=max_retries,
+        repo_root=repo_root,
+        show_progress=show_progress,
+    )
 
     for t in tasks:
         if t.get("kind") == "patch":

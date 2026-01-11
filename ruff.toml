@@ -1,0 +1,38 @@
+# Ruff configuration for Minions
+# https://docs.astral.sh/ruff/
+
+target-version = "py310"
+line-length = 100
+
+[lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # function call in default argument
+    "B905",   # zip without strict
+    "SIM108", # ternary operator (readability preference)
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["ARG", "SIM117", "E712"]  # unused args, nested with, bool comparisons ok in tests
+"llm_gc/model_router.py" = ["ARG001"]  # rules param kept for API consistency
+"llm_gc/orchestrator/*" = ["ARG"]  # callback signatures need unused params
+
+[lint.isort]
+known-first-party = ["llm_gc"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

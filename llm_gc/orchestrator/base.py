@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
-from typing import Iterable
-import json
 
 import httpx
 from rich.console import Console

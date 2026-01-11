@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Iterable, List, Sequence
 
+from llm_gc.orchestrator.base import ChatTurn
 from llm_gc.orchestrator.m1_chat import (
     AgentSpec,
     ChatOrchestrator,
-    ContextSnippet,
 )
-from llm_gc.orchestrator.base import ChatTurn
 from llm_gc.parsers import FileChange, parse_file_blocks
 from llm_gc.tools import FileReadRequest
 from llm_gc.tools.diff_generator import FileDiff, generate_diff, generate_multi_diff
@@ -72,7 +71,7 @@ class PatchOrchestrator(ChatOrchestrator):
 
     def run(self) -> dict:
         result = super().run()
-        turns: List[ChatTurn] = result.get("turns", [])
+        turns: list[ChatTurn] = result.get("turns", [])
         implementer_turn = self._latest_implementer_turn(turns)
         file_changes = parse_file_blocks(implementer_turn.content if implementer_turn else "")
         file_diffs = self._build_diffs(file_changes)
@@ -91,16 +90,13 @@ class PatchOrchestrator(ChatOrchestrator):
             "metadata": metadata,
         }
 
-    def _build_prompt(
-        self, agent: AgentSpec, history: List[ChatTurn], round_index: int
-    ) -> str:
+    def _build_prompt(self, agent: AgentSpec, history: list[ChatTurn], round_index: int) -> str:
         prompt = super()._build_prompt(agent, history, round_index)
-        additions: List[str] = []
+        additions: list[str] = []
         if agent.name == "Implementer":
             if self.target_files:
                 additions.append(
-                    "Modify these files: "
-                    + ", ".join(str(path) for path in self.target_files)
+                    "Modify these files: " + ", ".join(str(path) for path in self.target_files)
                 )
             elif round_index == 0:
                 additions.append(
@@ -114,22 +110,21 @@ class PatchOrchestrator(ChatOrchestrator):
                 )
         elif agent.name == "Reviewer" and round_index == self.rounds - 1:
             additions.append(
-                "THIS IS THE FINAL REVIEW. Focus on bugs or blocking issues in the"
-                " provided code."
+                "THIS IS THE FINAL REVIEW. Focus on bugs or blocking issues in the provided code."
             )
 
         if additions:
             prompt = f"{prompt}\n\nAdditional instructions:\n- " + "\n- ".join(additions)
         return prompt
 
-    def _latest_implementer_turn(self, turns: List[ChatTurn]) -> ChatTurn | None:
+    def _latest_implementer_turn(self, turns: list[ChatTurn]) -> ChatTurn | None:
         for turn in reversed(turns):
             if turn.role == "Implementer":
                 return turn
         return None
 
-    def _build_diffs(self, changes: Sequence[FileChange]) -> List[FileDiff]:
-        diffs: List[FileDiff] = []
+    def _build_diffs(self, changes: Sequence[FileChange]) -> list[FileDiff]:
+        diffs: list[FileDiff] = []
         for change in changes:
             original = self._read_original_file(change.path)
             diffs.append(generate_diff(original, change.content, change.path))

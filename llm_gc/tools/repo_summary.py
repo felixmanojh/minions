@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List
 import os
 import subprocess
+from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
 class RepoSummary:
     text: str
-    sources: Dict[str, str]
+    sources: dict[str, str]
 
 
 def build_repo_summary(
@@ -23,8 +22,8 @@ def build_repo_summary(
     max_tree_entries: int = 120,
 ) -> RepoSummary:
     root_path = Path(root).resolve()
-    sections: List[str] = []
-    sources: Dict[str, str] = {}
+    sections: list[str] = []
+    sources: dict[str, str] = {}
 
     readme = root_path / "README.md"
     if readme.exists():
@@ -64,7 +63,7 @@ def _git_status(root: Path) -> str:
 
 
 def _directory_tree(root: Path, *, max_depth: int, max_entries: int) -> str:
-    lines: List[str] = []
+    lines: list[str] = []
     total = 0
     for current_root, dirs, files in os.walk(root):
         rel = Path(current_root).relative_to(root)

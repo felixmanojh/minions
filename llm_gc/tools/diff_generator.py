@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import difflib
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List
-import difflib
 
 
 @dataclass
@@ -51,7 +51,7 @@ def generate_patch_from_files(
     Returns:
         Combined unified diff string.
     """
-    diffs: List[FileDiff] = []
+    diffs: list[FileDiff] = []
     for filepath, new_content in file_changes:
         full_path = repo_root / filepath
         if full_path.exists():

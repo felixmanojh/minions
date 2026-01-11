@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 # Store bananas in user's home directory for persistence
 BANANA_FILE = Path.home() / ".minions" / "bananas.json"
@@ -23,7 +22,7 @@ def _load_data() -> dict:
         }
     try:
         return json.loads(BANANA_FILE.read_text())
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, OSError):
         return {"total": 0, "history": [], "streak": 0, "best_streak": 0, "last_date": None}
 
 
@@ -48,12 +47,14 @@ def add_bananas(count: int, task_type: str = "swarm") -> int:
 
     # Track history (last 100 entries)
     today = datetime.now().strftime("%Y-%m-%d")
-    data["history"].append({
-        "date": today,
-        "count": count,
-        "type": task_type,
-        "timestamp": datetime.now().isoformat(),
-    })
+    data["history"].append(
+        {
+            "date": today,
+            "count": count,
+            "type": task_type,
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
     data["history"] = data["history"][-100:]  # Keep last 100
 
     # Update streak
@@ -64,6 +65,7 @@ def add_bananas(count: int, task_type: str = "swarm") -> int:
     else:
         # Check if yesterday
         from datetime import timedelta
+
         yesterday = (datetime.now().date() - timedelta(days=1)).isoformat()
         if data["last_date"] == yesterday:
             data["streak"] += 1
@@ -88,10 +90,7 @@ def get_stats() -> dict:
 
     # Calculate today's bananas
     today = datetime.now().strftime("%Y-%m-%d")
-    today_bananas = sum(
-        h["count"] for h in data["history"]
-        if h.get("date") == today
-    )
+    today_bananas = sum(h["count"] for h in data["history"] if h.get("date") == today)
 
     return {
         "total": data["total"],

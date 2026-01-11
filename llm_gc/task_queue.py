@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Dict, Iterable, List, Literal
 import json
 import uuid
+from collections.abc import Iterable
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Literal
 
 from llm_gc.orchestrator.m1_chat import run_chat
 from llm_gc.orchestrator.m3_patch import run_patch
@@ -44,6 +45,7 @@ def _run_task_worker(task_dict: dict) -> dict:
         task.error = str(exc)
     return asdict(task)
 
+
 TaskKind = Literal["chat", "patch"]
 TaskStatus = Literal["pending", "running", "completed", "failed"]
 
@@ -55,8 +57,8 @@ class Task:
     description: str
     repo_root: str
     rounds: int
-    read_requests: List[str] = field(default_factory=list)
-    targets: List[str] = field(default_factory=list)  # patch only
+    read_requests: list[str] = field(default_factory=list)
+    targets: list[str] = field(default_factory=list)  # patch only
     status: TaskStatus = "pending"
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     result_path: str | None = None
@@ -68,7 +70,7 @@ class TaskQueue:
     def __init__(self, path: str | Path = Path("sessions/task_queue.json")) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.tasks: List[Task] = []
+        self.tasks: list[Task] = []
         self._load()
 
     def enqueue_chat(
@@ -113,7 +115,7 @@ class TaskQueue:
         self._persist()
         return task
 
-    def list_tasks(self) -> List[Task]:
+    def list_tasks(self) -> list[Task]:
         return list(self.tasks)
 
     def run_next(self) -> Task | None:
@@ -150,7 +152,7 @@ class TaskQueue:
             self._persist()
         return pending
 
-    def run_parallel(self, max_workers: int = 3) -> List[Task]:
+    def run_parallel(self, max_workers: int = 3) -> list[Task]:
         """Run all pending tasks in parallel.
 
         Args:
@@ -169,11 +171,10 @@ class TaskQueue:
         self._persist()
 
         # Run in parallel
-        results: List[Task] = []
+        results: list[Task] = []
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             future_to_task = {
-                executor.submit(_run_task_worker, asdict(task)): task
-                for task in pending
+                executor.submit(_run_task_worker, asdict(task)): task for task in pending
             }
             for future in as_completed(future_to_task):
                 original_task = future_to_task[future]

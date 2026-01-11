@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict
 
-from pydantic import BaseModel, Field
 import yaml
+from pydantic import BaseModel, Field
 
 
 class ModelConfig(BaseModel):
@@ -22,7 +21,7 @@ class ModelConfig(BaseModel):
 def load_models(
     path: str | Path | None = None,
     preset: str | None = None,
-) -> Dict[str, ModelConfig]:
+) -> dict[str, ModelConfig]:
     """Load model configs from YAML file.
 
     Supports presets (nano, small, medium, large) and custom model definitions.
@@ -54,7 +53,7 @@ def load_models(
     presets = data.get("presets", {})
 
     # Start with preset config if available
-    role_configs: Dict[str, dict] = {}
+    role_configs: dict[str, dict] = {}
     if active_preset and active_preset in presets:
         role_configs = dict(presets[active_preset])
 

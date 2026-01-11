@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Tuple
 
 from diff_match_patch import diff_match_patch
 
@@ -12,7 +11,7 @@ from diff_match_patch import diff_match_patch
 class PatchResult:
     text: str
     applied: bool
-    details: Tuple[bool, ...]
+    details: tuple[bool, ...]
 
 
 def apply_fuzzy_patch(original: str, modified: str, target: str) -> PatchResult:

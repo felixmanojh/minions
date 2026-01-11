@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
 
 from llm_gc.orchestrator.m1_chat import run_chat
 from llm_gc.tools import FileReadRequest
@@ -68,7 +68,9 @@ def parse_read_requests(raw_values: Iterable[str]) -> list[FileReadRequest]:
                 start = int(start_str) if start_str else None
                 end = int(end_str) if end_str else None
             except ValueError as exc:
-                raise ValueError(f"Invalid range '{range_part}' for read request '{value}'") from exc
+                raise ValueError(
+                    f"Invalid range '{range_part}' for read request '{value}'"
+                ) from exc
         requests.append(FileReadRequest(path=path, start=start, end=end))
     return requests
 

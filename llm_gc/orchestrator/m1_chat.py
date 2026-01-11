@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
+import textwrap
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Sequence
-import textwrap
 
 from llm_gc.config import load_models
 from llm_gc.orchestrator.base import ChatTurn, OllamaClient, persist_transcript, render_turn
 from llm_gc.tools import (
-    FileReadRequest,
     FileReader,
+    FileReadRequest,
     RepoSummary,
     build_repo_summary,
 )
@@ -89,14 +89,14 @@ class ChatOrchestrator:
         self.repo_summary: RepoSummary | None = None
         self.repo_map: RepoMap | None = None
         self.summary_chars = summary_chars
-        self.context_snippets: List[ContextSnippet] = []
+        self.context_snippets: list[ContextSnippet] = []
         self.session_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S-m2")
         self._prepare_context(read_requests or [])
 
     def run(self) -> dict:
         """Execute the chat loop and persist transcript."""
 
-        history: List[ChatTurn] = []
+        history: list[ChatTurn] = []
         for round_index in range(self.rounds):
             for agent in self.agents:
                 turn = self._produce_turn(agent, history, round_index)
@@ -132,7 +132,7 @@ class ChatOrchestrator:
     def _produce_turn(
         self,
         agent: AgentSpec,
-        history: List[ChatTurn],
+        history: list[ChatTurn],
         round_index: int,
     ) -> ChatTurn:
         config = self.models.get(agent.config_key)
@@ -151,9 +151,7 @@ class ChatOrchestrator:
             round_index=round_index,
         )
 
-    def _build_prompt(
-        self, agent: AgentSpec, history: List[ChatTurn], round_index: int
-    ) -> str:
+    def _build_prompt(self, agent: AgentSpec, history: list[ChatTurn], round_index: int) -> str:
         context = "\n".join(f"{turn.role}: {turn.content}" for turn in history[-6:])
         if not context:
             context = "(conversation has not started)"
@@ -180,7 +178,7 @@ class ChatOrchestrator:
         ).strip()
 
     def _build_repo_context(self) -> str:
-        sections: List[str] = []
+        sections: list[str] = []
         if self.repo_summary and self.repo_summary.text:
             sections.append(self.repo_summary.text)
         if self.repo_map and self.repo_map.symbols:
@@ -190,9 +188,7 @@ class ChatOrchestrator:
         return "\n\n".join(sections) or "(no repo context)"
 
     def _prepare_context(self, read_requests: Sequence[FileReadRequest]) -> None:
-        self.repo_summary = build_repo_summary(
-            self.repo_root, max_chars=self.summary_chars
-        )
+        self.repo_summary = build_repo_summary(self.repo_root, max_chars=self.summary_chars)
         self.repo_map = build_repomap(self.repo_root)
         for request in read_requests:
             try:
