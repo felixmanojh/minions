@@ -1,37 +1,37 @@
 ---
 name: minion-swarm
 description: >
-  Dispatch a swarm of minions to work on multiple tasks in parallel. Good for: batch operations
-  like adding docstrings to many files, fixing typos across a codebase, bulk renaming, code checks.
-  Features auto-retry with simplified prompts when minions fail. Use when you have many similar tasks.
+  Dispatch minions to apply the same mechanical transformation to many files in parallel.
+  Good for: adding docstrings, type hints, renaming variables, fixing typos across a codebase.
+  NOT for: finding bugs, code review, or anything requiring judgment.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
 # Minion Swarm
 
-Dispatch many minions in parallel with auto-retry. Like Gru commanding his minion army!
+Apply the same mechanical transformation to many files in parallel.
 
-## When to use
+## What swarm is for
 
-- Multiple similar tasks (docstrings on 10 files)
-- Bulk operations (fix typos across codebase)
-- Code verification sweeps (find issues, check patterns)
-- Time-sensitive grunt work
-- Tasks that can fail and retry
+**The pattern:** "Do {mechanical task} to {N files}"
 
-## Features
+```
+"Add docstrings" × 20 files
+"Add type hints" × 30 files
+"Rename oldName to newName" × 15 files
+"Fix trailing whitespace" × 50 files
+```
 
-| Feature | Description |
-|---------|-------------|
-| Parallel execution | Multiple minions work simultaneously |
-| Auto-retry | Failed tasks retry with simpler prompts |
-| Minion-speak | Prompts get simplified on retry |
-| 🍌 Banana counter | Track successful completions across sessions |
-| Streaks | Daily streak tracking for productivity |
+## What swarm is NOT for
+
+- Finding bugs (minions miss them)
+- Code review (minions lack judgment)
+- Security checks (use real tools)
+- Anything requiring "understanding"
 
 ## Usage
 
-### Patch: Same task on multiple files
+### Basic: Same task, multiple files
 
 ```bash
 source .venv/bin/activate && python scripts/swarm.py patch "Add docstrings to all functions" \
@@ -40,180 +40,100 @@ source .venv/bin/activate && python scripts/swarm.py patch "Add docstrings to al
   --json
 ```
 
-### Analyze: Check files for issues
+### Glob pattern
 
 ```bash
-source .venv/bin/activate && python scripts/swarm.py analyze "Check for missing error handling" \
-  src/api/*.py \
+source .venv/bin/activate && python scripts/swarm.py patch "Add type hints" \
+  src/**/*.py \
   --workers 5 \
   --json
 ```
 
-### Batch from JSON
-
-Create a tasks file:
-
-```json
-[
-  {"kind": "patch", "description": "Add type hints", "target": "src/utils.py"},
-  {"kind": "patch", "description": "Add type hints", "target": "src/parser.py"},
-  {"kind": "task", "description": "Review error handling", "context_files": ["src/errors.py"]}
-]
-```
-
-Run the swarm:
-
-```bash
-source .venv/bin/activate && python scripts/swarm.py batch tasks.json --workers 5 --json
-```
-
-### From Claude (programmatic)
+### Programmatic
 
 ```python
 from llm_gc.swarm import Swarm
 import asyncio
 
 swarm = Swarm(workers=5, max_retries=2)
-
-# Add patch tasks
 swarm.add_patch("Add docstrings", target="src/a.py")
 swarm.add_patch("Add docstrings", target="src/b.py")
-
-# Add analyze tasks
-swarm.add_task("Check for security issues", context_files=["src/auth.py"])
+swarm.add_patch("Add docstrings", target="src/c.py")
 
 result = asyncio.run(swarm.run())
 print(f"Completed: {result['stats']['completed']}")
 ```
 
-### Process files with pattern
+## Good swarm tasks
 
-```python
-from llm_gc.swarm import process_files
-import asyncio
+| Task | Why it works |
+|------|--------------|
+| Add docstrings | Templated, mechanical |
+| Add type hints | Pattern matching |
+| Rename variable | Find-replace |
+| Fix import order | Mechanical |
+| Add license header | Boilerplate |
+| Remove trailing whitespace | Trivial |
 
-# Analyze all Python files
-result = asyncio.run(process_files(
-    pattern='src/**/*.py',
-    task='Check {file} for security issues',
-    action='analyze'
-))
+## Bad swarm tasks
 
-# Patch all Python files
-result = asyncio.run(process_files(
-    pattern='src/**/*.py',
-    task='Add type hints to {file}',
-    action='patch'
-))
-```
+| Task | Why it fails |
+|------|--------------|
+| Find bugs | Requires reasoning |
+| Check for issues | Vague, unreliable |
+| Review code | Needs judgment |
+| Fix logic errors | Needs understanding |
 
-## Check/Analyze Examples
+## Auto-retry
 
-| Check | Example prompt |
-|-------|----------------|
-| Missing docs | "Find functions without docstrings" |
-| Error handling | "Check for unhandled exceptions" |
-| TODO/FIXME | "List all TODO comments" |
-| Naming | "Find variables with unclear names" |
-| Complexity | "Find functions over 50 lines" |
-| Imports | "Check for unused imports" |
-| Types | "Find functions missing type hints" |
+When a minion fails, swarm retries with simpler prompts:
 
-## Auto-retry with Minion-speak
-
-When a task fails, the swarm automatically retries with simpler prompts:
-
-| Retry | Prompt Transformation |
-|-------|----------------------|
+| Retry | Transformation |
+|-------|---------------|
 | 0 | Original prompt |
-| 1 | Remove verbose words + "SIMPLE TASK. ONE THING ONLY." |
-| 2 | First 20 words only + "DO THIS:" |
-
-This helps small models focus on the essential task.
+| 1 | Strip fluff + "SIMPLE TASK. ONE THING ONLY." |
+| 2 | First 20 words + "DO THIS:" |
 
 ## Output
 
 ```json
 {
   "completed": [
-    {"description": "Add docstrings...", "result": "sessions/xxx.patch"}
+    {"description": "Add docstrings to src/a.py", "result": "sessions/xxx.patch"}
   ],
   "failed": [
-    {"description": "Complex task...", "error": "Model output truncated"}
+    {"description": "Add docstrings to src/b.py", "error": "Output truncated"}
   ],
   "stats": {
-    "total": 5,
-    "completed": 4,
+    "total": 3,
+    "completed": 2,
     "failed": 1,
-    "retries": 2,
-    "elapsed_seconds": 45.2,
-    "bananas_earned": 4,
-    "bananas_total": 127
+    "bananas_earned": 2
   }
 }
 ```
 
 ## Banana Stats 🍌
 
-Track your minion productivity across sessions!
+Track completed tasks across sessions:
 
 ```bash
 source .venv/bin/activate && python scripts/bananas.py
-
-# Output:
-# ========================================
-# 🍌 BANANA STATS 🍌
-# ========================================
-# Total bananas: 127
-# Today: 15
-# Current streak: 3 days
-# Best streak: 7 days
-#
-# 🍌🍌🍌🍌🍌 x20+
-# ========================================
 ```
 
-Banana milestones:
-- 🍌 < 10: Getting started
-- 🍌🍌🍌🍌🍌 x10: Regular user
-- 🍌🍌🍌🍌🍌 x20+: Power user
-- 🍌👑: BANANA KING! (500+)
+Milestones: 🍌 (starting) → 🍌🍌🍌🍌🍌 x10 (regular) → 🍌👑 (500+ BANANA KING)
 
 ## Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--workers` | 5 | Parallel workers |
+| `--workers` | 5 | Parallel minions |
 | `--retries` | 2 | Max retries per task |
-| `--json` | false | Output JSON |
+| `--json` | false | Machine-readable output |
 
-## Best practices
+## Tips
 
-1. **Keep tasks atomic** - One file, one change
-2. **Use more workers for simple tasks** - `--workers 10` for typo fixes
-3. **Use fewer workers for complex tasks** - `--workers 3` for code changes
-4. **Review all patches** - Minions make mistakes!
-
-## Example: Add docstrings to entire module
-
-```bash
-# Find all Python files
-FILES=$(find src/ -name "*.py" | tr '\n' ' ')
-
-# Dispatch swarm
-source .venv/bin/activate && python scripts/swarm.py patch "Add docstrings to all public functions" $FILES \
-  --workers 5 \
-  --retries 2 \
-  --json > results.json
-
-# Review patches
-cat sessions/*.patch | less
-```
-
-## Limitations
-
-- Parallel tasks compete for Ollama resources
-- Very large swarms may slow down
-- Each task is independent (no shared state)
-- Review patches carefully before applying
-- Analyze tasks report issues, they don't fix them
+1. **Keep tasks specific** - "Add docstrings" not "improve code"
+2. **One transformation** - Don't combine tasks
+3. **Review all patches** - Minions make mistakes
+4. **More workers for trivial tasks** - `--workers 10` for whitespace fixes
