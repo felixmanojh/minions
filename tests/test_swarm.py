@@ -240,6 +240,9 @@ class TestSwarmRun:
         progress_messages = []
 
         async def mock_gather(*args, **kwargs):
+            # Close unawaited coroutines to avoid warnings
+            for coro in args:
+                coro.close()
             return [
                 MinionTask(
                     description="Test task",
@@ -264,6 +267,9 @@ class TestSwarmRun:
         swarm.add_chat("Task 2")
 
         async def mock_gather(*args, **kwargs):
+            # Close unawaited coroutines to avoid warnings
+            for coro in args:
+                coro.close()
             return [
                 MinionTask(
                     description="Task 1",

@@ -18,9 +18,9 @@ Build a local first coding assistant where multiple local open source coding mod
 
 ### Non goals
 
-* Not a fully autonomous system that pushes to production without review
 * Not a training or finetuning pipeline
 * Not a perfect replacement for IDEs on day 1
+* Not user-interactive - minions work autonomously and report back to Claude
 
 ### User stories
 
@@ -58,23 +58,21 @@ Build a local first coding assistant where multiple local open source coding mod
    * File read tool (repo scoped)
    * File write tool (repo scoped)
    * Diff tool
-   * Test runner tool (disabled by default, user approval required)
+   * Test runner tool (runs autonomously, reports results)
+   * Patch apply tool (applies diffs directly)
    * Optional: lint, typecheck, formatter
 
-4. **Safety Layer**
+4. **Safety Layer** (autonomous, no human gates)
 
-   * Denylist dangerous commands by default (rm, sudo, curl pipe sh, etc)
+   * Denylist dangerous commands (rm -rf, sudo, curl pipe sh, etc)
    * Allowlist safe commands for tests (pytest, npm test, cargo test, etc)
    * Path sandboxing: tools can only touch files under the repo root
-   * Human approval gates before:
+   * Fail safely and report errors back to Claude
+   * No human approval gates - minions are autonomous workers
 
-     * running shell
-     * writing more than N files
-     * modifying config files like CI or Docker
+### Workflow (autonomous)
 
-### Workflow
-
-1. User gives task: bug fix or feature request
+1. Claude delegates task to minions
 2. Orchestrator creates a short shared context: repo summary, constraints, definition of done
 3. Agents run in rounds:
 
@@ -86,18 +84,21 @@ Build a local first coding assistant where multiple local open source coding mod
    * final patch
    * risk notes
    * test plan
-5. User approves running tests, then approves applying changes
+5. Minions apply patch, run tests, report results back to Claude
+6. Claude reviews and decides next steps
 
 ### MVP scope
 
-* CLI app: `llm-gc` (group chat)
-* Config file: `models.yaml` and `roles.yaml`
-* Commands:
+* Python package: `llm_gc` (minions for Claude Code)
+* Config file: `models.yaml`
+* Skills (Claude Code plugin):
 
-  * `llm-gc chat "task"`
-  * `llm-gc patch "task"` outputs unified diff
-  * `llm-gc apply` applies diff after confirmation
-* Local transcript storage in a sessions folder
+  * `/minion-huddle` - multi-agent discussion
+  * `/minion-fix` - patch generation and auto-apply
+  * `/minion-swarm` - parallel task execution
+  * `/minion-queue` - batch task queuing
+* Local transcript storage in sessions folder
+* Autonomous operation - no user prompts
 
 ### Suggested roles for v1
 
@@ -130,9 +131,15 @@ Build a local first coding assistant where multiple local open source coding mod
 
 ### Milestones
 
-* M0: Ollama models runnable locally and accessible
-* M1: basic group chat with 3 roles, no tools
-* M2: read only tools and repo summarizer
-* M3: patch generation with unified diff
-* M4: guarded test runner and apply flow
-* M5: judge scoring and better stopping rules
+* M0: Ollama models runnable locally and accessible ✅
+* M1: basic group chat with 3 roles, no tools ✅
+* M2: read only tools and repo summarizer ✅
+* M3: patch generation with unified diff ✅
+* M4: autonomous test runner and auto-apply ✅
+  * Test runner tool (pytest, npm test, cargo test)
+  * Auto-apply patches (no confirmation)
+  * Safety constraints (denylist, path sandbox)
+* M5: judge agent and quality scoring
+  * Judge agent selects best approach
+  * Quality rubric scoring
+  * Early stopping on consensus

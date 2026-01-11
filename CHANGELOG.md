@@ -13,9 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PageRank file ranking** (`llm_gc/repomap.py`) - Import graph analysis to find most relevant context files
 - **Fallback patch strategies** (`llm_gc/patcher.py`) - Robust patching: exact → fuzzy → unified diff → git apply
 - **Agent handoff pattern** (`llm_gc/handoff.py`) - Automatic Reviewer → Patcher transitions
+- **M4: Autonomous test runner and auto-apply**:
+  - `MinionTestRunner` (`llm_gc/tools/test_runner.py`) - Auto-detect project type (Python, Node, Rust, Go) and run tests
+  - `PatchApplier` (`llm_gc/tools/patch_apply.py`) - Auto-apply patches with backup and rollback
+  - `SafetyGuard` (`llm_gc/safety.py`) - Denylist dangerous commands, path sandboxing, secret detection
+- **Async refactor** - Swarm and orchestrators now use `asyncio` for parallel execution
 
 ### Changed
 - Dependencies: added `diskcache`, `networkx`, `numpy`, `scipy`
+- Swarm uses `asyncio.gather()` instead of ProcessPoolExecutor
+- Test count: 120 tests
 
 ## [0.1.0] - 2025-01-11
 
