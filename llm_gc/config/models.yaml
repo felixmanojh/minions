@@ -1,23 +1,28 @@
 # Minions Model Configuration
 #
-# Choose a preset based on your hardware, or define custom models.
-# All models must be available in Ollama (run: ollama list)
+# Role-based model selection optimized for different tasks:
+#   implementer - Code generation, feature implementation
+#   reviewer    - Code review, bug detection
+#   patcher     - FIM (fill-in-middle), surgical edits, diffs
 #
-# Presets:
-#   nano   - 1-2GB RAM, fastest, least capable
-#   small  - 4GB RAM, good balance (default)
-#   medium - 8GB RAM, better quality
+# Presets by hardware:
+#   nano   - 2GB RAM, ultra-light, basic tasks only
+#   small  - 4GB RAM, fast, acceptable quality
+#   medium - 8GB RAM, recommended balance (default)
 #   large  - 16GB+ RAM, best quality
 #
-# To use a preset, set: preset: small
-# To use custom models, comment out preset and define roles below.
+# Set preset via:
+#   1. Environment: MINIONS_PRESET=medium
+#   2. This file: preset: medium
+#   3. Custom roles below (overrides preset)
 
-preset: small
+preset: medium
 
 # ─────────────────────────────────────────────────────────────
-# Preset Definitions (don't edit unless adding new presets)
+# Preset Definitions
 # ─────────────────────────────────────────────────────────────
 presets:
+  # Ultra-light: Runs anywhere (Raspberry Pi, old laptops)
   nano:
     implementer:
       model: qwen2.5-coder:0.5b
@@ -25,9 +30,14 @@ presets:
       max_tokens: 256
     reviewer:
       model: qwen2.5-coder:0.5b
-      temperature: 0.15
-      max_tokens: 256
+      temperature: 0.1
+      max_tokens: 200
+    patcher:
+      model: starcoder2:3b
+      temperature: 0.1
+      max_tokens: 512
 
+  # Fast local: Quick iterations, acceptable quality
   small:
     implementer:
       model: qwen2.5-coder:1.5b
@@ -35,9 +45,14 @@ presets:
       max_tokens: 512
     reviewer:
       model: deepseek-coder:1.3b
-      temperature: 0.15
+      temperature: 0.1
       max_tokens: 400
+    patcher:
+      model: starcoder2:3b
+      temperature: 0.1
+      max_tokens: 768
 
+  # Recommended: Best balance of speed and quality
   medium:
     implementer:
       model: qwen2.5-coder:7b
@@ -45,9 +60,14 @@ presets:
       max_tokens: 1024
     reviewer:
       model: deepseek-coder:6.7b
-      temperature: 0.15
+      temperature: 0.1
       max_tokens: 800
+    patcher:
+      model: starcoder2:7b
+      temperature: 0.1
+      max_tokens: 1024
 
+  # Best quality: For complex codebases
   large:
     implementer:
       model: qwen2.5-coder:14b
@@ -55,11 +75,48 @@ presets:
       max_tokens: 2048
     reviewer:
       model: deepseek-coder:33b
-      temperature: 0.15
+      temperature: 0.1
       max_tokens: 1500
+    patcher:
+      model: starcoder2:15b
+      temperature: 0.1
+      max_tokens: 2048
 
 # ─────────────────────────────────────────────────────────────
-# Custom Models (uncomment and edit to override preset)
+# Role Specializations (why each model was chosen)
+# ─────────────────────────────────────────────────────────────
+#
+# implementer: Qwen2.5-Coder
+#   - Best overall coding model under 10B
+#   - 92+ languages, near GPT-4o on benchmarks
+#   - Strong at generation and reasoning
+#
+# reviewer: DeepSeek-Coder
+#   - 300+ languages, great at finding bugs
+#   - "Immediately usable" suggestions
+#   - Good at explaining issues concisely
+#
+# patcher: StarCoder2 (FIM specialist)
+#   - Trained specifically for fill-in-the-middle
+#   - Best at surgical edits and partial rewrites
+#   - 16K context for full-file + diff
+#   - Uses <fim_prefix>, <fim_suffix>, <fim_middle> tokens
+#
+# ─────────────────────────────────────────────────────────────
+# Alternative Models (language-specific or experimental)
+# ─────────────────────────────────────────────────────────────
+#
+# Systems/Rust focused:
+#   model: codegemma:7b
+#
+# Experimental (fast + reasoning):
+#   model: smollm3:3b  # When available in Ollama
+#
+# Multimodal (images + code):
+#   model: gemma3:4b
+#
+# ─────────────────────────────────────────────────────────────
+# Custom Overrides (uncomment to override preset roles)
 # ─────────────────────────────────────────────────────────────
 # implementer:
 #   model: codellama:7b-code
@@ -68,11 +125,10 @@ presets:
 #
 # reviewer:
 #   model: mistral:7b
-#   temperature: 0.15
+#   temperature: 0.1
 #   max_tokens: 800
 #
-# # Add custom roles
-# bughunter:
-#   model: codellama:13b-instruct
-#   temperature: 0.3
-#   max_tokens: 1000
+# patcher:
+#   model: starcoder2:7b
+#   temperature: 0.1
+#   max_tokens: 1024
