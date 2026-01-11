@@ -1,88 +1,77 @@
 ---
 name: minion-patch
 description: >
-  Generate code patches using local minions. Good for: adding docstrings, fixing typos,
-  renaming variables, adding type hints, simple boilerplate. NOT for: complex bugs,
-  multi-file refactors, business logic. Produces a diff for review - always verify.
+  Generate patches for SMALL files (<50 lines) using local 7b models.
+  Only for mechanical changes: add comment, add simple docstring, rename.
+  ALWAYS review output - minions hallucinate and truncate.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
 # Minion Patch
 
-Generate a code patch using a local minion. Single-shot execution produces a unified diff.
+Generate a patch for a small file. Single-shot, no reasoning.
 
-## Decision Guide
+## Hard Limits
 
-| Task | Use Minion? | Why |
-|------|-------------|-----|
-| Fix typo | Yes | Mechanical |
-| Add docstrings | Yes | Templated |
-| Add type hints | Yes | Mechanical |
-| Rename variable | Yes | Find-replace |
-| Logic bug | No | Needs reasoning |
-| Multi-file refactor | No | Use /minion-swarm |
-| Security fix | No | Needs expertise |
+| Constraint | Limit |
+|------------|-------|
+| File size | <50 lines (7b models truncate longer files) |
+| Task complexity | Mechanical only (no logic, no reasoning) |
+| Context | MUST pass `--read` or minion hallucinates |
 
-**Quick test:** Is it "find and change"? → Minion can try.
+## What Actually Works
+
+| Task | Works? | Notes |
+|------|--------|-------|
+| Add comment to small file | Yes | Tested |
+| Add docstring to small class | Yes | <30 line files |
+| Rename variable | Maybe | Simple cases |
+| Add type hint | Maybe | If file is tiny |
+| Fix typo | Maybe | If obvious |
+| Anything requiring thought | No | Will hallucinate |
+| Files >50 lines | No | Output truncates |
 
 ## Usage
 
-Basic patch:
+**ALWAYS include `--read` with the target file:**
 
 ```bash
-source .venv/bin/activate && python scripts/m3_patch.py "Add docstrings to public functions" \
+source .venv/bin/activate && python scripts/m3_patch.py "Add comment '# TODO' at top" \
   --repo-root . \
-  --target src/utils.py \
+  --read src/small_file.py \
+  --target src/small_file.py \
   --json
 ```
 
-With context (minion sees related code):
-
-```bash
-source .venv/bin/activate && python scripts/m3_patch.py "Add type hints matching base.py style" \
-  --repo-root . \
-  --read llm_gc/orchestrator/base.py \
-  --target llm_gc/tools/file_reader.py \
-  --json
-```
-
-## Output
-
-```json
-{
-  "task": "Add docstrings",
-  "patch_path": "sessions/20250112-patch.patch",
-  "metadata": {
-    "patched_files": ["src/utils.py"]
-  }
-}
-```
+Without `--read`, the minion will hallucinate file contents.
 
 ## Applying Patches
 
-Preview:
+**Always dry-run first:**
+
 ```bash
-cat sessions/*.patch
+patch -p1 --dry-run < sessions/*.patch
 ```
 
-Dry-run:
+If clean, apply:
+
 ```bash
-patch -p1 --dry-run < sessions/20250112-patch.patch
+patch -p1 < sessions/*.patch
 ```
 
-Apply:
-```bash
-patch -p1 < sessions/20250112-patch.patch
-```
+## Failure Modes
 
-## When to Escalate
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Wrong file contents | No `--read` | Add `--read` flag |
+| Truncated output | File too big | Use smaller file or cloud model |
+| Empty patch | No changes needed | Task already done |
+| Diff format in output | Model confused | Re-run, check prompt |
+| Wrong path in patch | Model said `python` | Fallback should handle |
 
-- **Empty patch** → Add more context with `--read`
-- **Many files** → Use /minion-swarm instead
-- **Complex logic** → Use cloud models
+## When NOT to Use
 
-## Limitations
-
-- Small models may truncate output
-- Best for 1-2 file changes
-- Always review before applying
+- File >50 lines
+- Need to understand code logic
+- Security-sensitive changes
+- Anything where "correct" matters

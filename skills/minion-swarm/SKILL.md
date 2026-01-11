@@ -1,139 +1,89 @@
 ---
 name: minion-swarm
 description: >
-  Dispatch minions to apply the same mechanical transformation to many files in parallel.
-  Good for: adding docstrings, type hints, renaming variables, fixing typos across a codebase.
-  NOT for: finding bugs, code review, or anything requiring judgment.
+  Run same mechanical patch on multiple SMALL files (<50 lines each) in parallel.
+  7b models truncate longer files. Only for trivial changes. Review everything.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
 # Minion Swarm
 
-Apply the same mechanical transformation to many files in parallel.
+Same patch task on multiple small files in parallel.
 
-## What swarm is for
+## Hard Limits
 
-**The pattern:** "Do {mechanical task} to {N files}"
+| Constraint | Limit |
+|------------|-------|
+| File size | <50 lines each (7b truncates longer) |
+| Task type | Mechanical only |
+| Review | MUST review every patch |
 
-```
-"Add docstrings" × 20 files
-"Add type hints" × 30 files
-"Rename oldName to newName" × 15 files
-"Fix trailing whitespace" × 50 files
-```
+## What Actually Works
 
-## What swarm is NOT for
+Tested with qwen2.5-coder:7b:
 
-- Finding bugs (minions miss them)
-- Code review (minions lack judgment)
-- Security checks (use real tools)
-- Anything requiring "understanding"
+| Scenario | Result |
+|----------|--------|
+| Add comment to 22-line file | Success |
+| Add comment to 130-line file | Failed (truncated) |
+| Task on file without `--read` | Hallucinated |
 
 ## Usage
 
-### Basic: Same task, multiple files
-
 ```bash
-source .venv/bin/activate && python scripts/swarm.py patch "Add docstrings to all functions" \
-  src/utils.py src/parser.py src/config.py \
-  --workers 5 \
-  --json
+source .venv/bin/activate && python scripts/swarm.py \
+  --workers 2 \
+  --json \
+  patch "Add comment '# Minions' at top" \
+  small_file_1.py small_file_2.py small_file_3.py
 ```
 
-### Glob pattern
-
-```bash
-source .venv/bin/activate && python scripts/swarm.py patch "Add type hints" \
-  src/**/*.py \
-  --workers 5 \
-  --json
-```
-
-### Programmatic
-
-```python
-from llm_gc.swarm import Swarm
-import asyncio
-
-swarm = Swarm(workers=5, max_retries=2)
-swarm.add_patch("Add docstrings", target="src/a.py")
-swarm.add_patch("Add docstrings", target="src/b.py")
-swarm.add_patch("Add docstrings", target="src/c.py")
-
-result = asyncio.run(swarm.run())
-print(f"Completed: {result['stats']['completed']}")
-```
-
-## Good swarm tasks
-
-| Task | Why it works |
-|------|--------------|
-| Add docstrings | Templated, mechanical |
-| Add type hints | Pattern matching |
-| Rename variable | Find-replace |
-| Fix import order | Mechanical |
-| Add license header | Boilerplate |
-| Remove trailing whitespace | Trivial |
-
-## Bad swarm tasks
-
-| Task | Why it fails |
-|------|--------------|
-| Find bugs | Requires reasoning |
-| Check for issues | Vague, unreliable |
-| Review code | Needs judgment |
-| Fix logic errors | Needs understanding |
-
-## Auto-retry
-
-When a minion fails, swarm retries with simpler prompts:
-
-| Retry | Transformation |
-|-------|---------------|
-| 0 | Original prompt |
-| 1 | Strip fluff + "SIMPLE TASK. ONE THING ONLY." |
-| 2 | First 20 words + "DO THIS:" |
+The script automatically passes each file as `--read` context.
 
 ## Output
 
 ```json
 {
-  "completed": [
-    {"description": "Add docstrings to src/a.py", "result": "sessions/xxx.patch"}
-  ],
-  "failed": [
-    {"description": "Add docstrings to src/b.py", "error": "Output truncated"}
-  ],
-  "stats": {
-    "total": 3,
-    "completed": 2,
-    "failed": 1,
-    "bananas_earned": 2
-  }
+  "completed": [{"target": "small_file_1.py", "result": "sessions/xxx.patch"}],
+  "failed": [{"target": "big_file.py", "status": "empty"}],
+  "stats": {"completed": 1, "failed": 1, "bananas_earned": 1}
 }
 ```
 
-## Banana Stats 🍌
+## What "Failed" Means
 
-Track completed tasks across sessions:
+| Status | Meaning |
+|--------|---------|
+| `empty` | No patch generated (file unchanged or truncated) |
+| `error` | Exception during execution |
+
+"Empty" usually means:
+1. File already had the change (correct)
+2. File too big, output truncated (limitation)
+3. Model confused (re-run)
+
+## Applying Patches
 
 ```bash
-source .venv/bin/activate && python scripts/bananas.py
+# Review first
+cat sessions/*.patch
+
+# Dry-run
+patch -p1 --dry-run < sessions/*.patch
+
+# Apply if clean
+patch -p1 < sessions/*.patch
 ```
 
-Milestones: 🍌 (starting) → 🍌🍌🍌🍌🍌 x10 (regular) → 🍌👑 (500+ BANANA KING)
+## When NOT to Use
 
-## Options
+- Any file >50 lines
+- Changes requiring understanding
+- Security-sensitive code
+- When correctness matters more than speed
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--workers` | 5 | Parallel minions |
-| `--retries` | 2 | Max retries per task |
-| `--json` | false | Machine-readable output |
+## Realistic Use Case
 
-## Tips
+"I have 10 tiny config files and want to add a header comment to each"
 
-1. **Keep tasks specific** - "Add docstrings" not "improve code"
-2. **One transformation** - Don't combine tasks
-3. **Review all patches** - Minions make mistakes
-4. **More workers for trivial tasks** - `--workers 10` for whitespace fixes
+That's it. That's what swarm is actually good for.
