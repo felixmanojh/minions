@@ -1,175 +1,188 @@
-"""Patch-focused orchestrator (Milestone M3)."""
+"""Single-shot patch generator."""
 
 from __future__ import annotations
 
+import textwrap
 from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
-from dataclasses import dataclass
-
-from llm_gc.orchestrator.base import ChatTurn
-from llm_gc.orchestrator.m1_chat import (
-    AgentSpec,
-    ChatOrchestrator,
-)
+from llm_gc.config import load_models
+from llm_gc.orchestrator.base import ChatTurn, OllamaClient, persist_transcript, render_turn
 from llm_gc.parsers import FileChange, parse_file_blocks
-from llm_gc.tools import FileReadRequest
+from llm_gc.tools import (
+    FileReader,
+    FileReadRequest,
+    RepoSummary,
+    build_repo_summary,
+)
+from llm_gc.tools.repomap import RepoMap, build_repomap
 from llm_gc.tools.diff_generator import FileDiff, generate_diff, generate_multi_diff
 
-PATCH_AGENTS = [
-    AgentSpec(
-        name="Implementer",
-        config_key="implementer",
-        system_message=(
-            "You are a junior developer making small code changes.\n"
-            "RULES:\n"
-            "- Make MINIMAL changes - only what's asked\n"
-            "- Output COMPLETE file in fenced block: ```path/to/file.py\n"
-            "- NO explanations, NO comments about changes\n"
-            "- Copy unchanged parts EXACTLY\n"
-            "- One file at a time"
-        ),
-    ),
-    AgentSpec(
-        name="Reviewer",
-        config_key="reviewer",
-        system_message=(
-            "You review code changes. Keep it SHORT (under 50 words).\n"
-            "- Check: syntax errors, typos, missing brackets\n"
-            "- Say 'LGTM' if code looks correct\n"
-            "- Only flag BUGS, not style preferences"
-        ),
-    ),
-]
 
+# Single-shot patcher system prompt
+PATCHER_SYSTEM_PROMPT = """You are a coding minion making small code changes.
 
-NEGATIVE_REVIEW_KEYWORDS = [
-    "bug",
-    "error",
-    "fails",
-    "failing",
-    "issue",
-    "missing",
-    "breaks",
-    "wrong",
-    "not ready",
-    "reject",
-]
-
-POSITIVE_REVIEW_KEYWORDS = ["lgtm", "looks good", "ship it", "approved", "good to go"]
+RULES:
+- Make MINIMAL changes - only what's asked
+- Output COMPLETE file in fenced block: ```path/to/file.py
+- NO explanations, NO comments about changes
+- Copy unchanged parts EXACTLY
+- One file at a time
+- Be concise
+"""
 
 
 @dataclass
-class ReviewVerdict:
-    approved: bool
-    reason: str
+class ContextSnippet:
+    label: str
+    content: str
 
 
-class PatchOrchestrator(ChatOrchestrator):
-    """Extends ChatOrchestrator to capture final file contents and produce a diff."""
+class PatchExecutor:
+    """Single-shot patch executor."""
 
     def __init__(
         self,
         *,
         task: str,
-        rounds: int = 4,
+        model: str | None = None,
         preset: str | None = None,
         config_path: str | Path | None = None,
         session_dir: str | Path = "sessions",
         repo_root: str | Path | None = None,
         read_requests: Sequence[FileReadRequest] | None = None,
         target_files: Sequence[str] | None = None,
+        summary_chars: int = 4000,
     ) -> None:
-        super().__init__(
-            task=task,
-            rounds=rounds,
-            preset=preset,
-            config_path=config_path,
-            session_dir=session_dir,
-            agents=PATCH_AGENTS,
-            repo_root=repo_root,
-            read_requests=read_requests,
-        )
+        self.task = task
+        self.preset = preset
+        self.session_dir = Path(session_dir)
+        self.models = load_models(config_path, preset=preset)
+        self.model_override = model
+        self.client = OllamaClient()
+        self.repo_root = Path(repo_root or Path.cwd()).resolve()
+        self.file_reader = FileReader(self.repo_root)
+        self.repo_summary: RepoSummary | None = None
+        self.repo_map: RepoMap | None = None
+        self.summary_chars = summary_chars
+        self.context_snippets: list[ContextSnippet] = []
+        self.session_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S-patch")
         self.target_files = [Path(f) for f in (target_files or [])]
-        self.require_target_selection = not self.target_files
+        self._prepare_context(read_requests or [])
 
     async def run(self) -> dict:
-        result = await super().run()
-        turns: list[ChatTurn] = result.get("turns", [])
-        reviewer_turn = self._latest_reviewer_turn(turns)
-        verdict = self._analyze_review(reviewer_turn)
+        """Execute single-shot patch task and return result with diff."""
+        # Get model config (use patcher role, fallback to implementer)
+        config = self.models.get("patcher") or self.models.get("implementer")
+        if not config:
+            available = ", ".join(self.models.keys()) or "<empty>"
+            raise KeyError(f"No 'patcher' or 'implementer' config found. Available: {available}")
 
-        metadata = result.get("metadata", {})
-        metadata["review_verdict"] = {
-            "approved": verdict.approved,
-            "reason": verdict.reason,
-        }
+        # Override model if specified
+        if self.model_override:
+            config = config.__class__(
+                model=self.model_override,
+                temperature=config.temperature,
+                max_tokens=config.max_tokens,
+            )
 
-        if not verdict.approved:
-            metadata["status"] = "rejected_by_reviewer"
-            return {
-                **result,
-                "patch_path": None,
-                "changes": [],
-                "diffs": [],
-                "metadata": metadata,
-            }
+        # Build prompt and execute
+        prompt = self._build_prompt()
+        content, latency_ms = await self.client.prompt(prompt, config, role="patcher")
+        token_estimate = max(1, len(content.split()))
 
-        implementer_turn = self._latest_implementer_turn(turns)
-        file_changes = parse_file_blocks(implementer_turn.content if implementer_turn else "")
+        turn = ChatTurn(
+            role="Patcher",
+            content=content,
+            latency_ms=latency_ms,
+            token_estimate=token_estimate,
+            model=config.model,
+            round_index=0,
+        )
+        render_turn(turn)
+
+        # Parse file changes and generate diff
+        file_changes = parse_file_blocks(content)
         file_diffs = self._build_diffs(file_changes)
         patch_text = generate_multi_diff(file_diffs)
-        patch_path = self._write_patch_file(patch_text)
+        patch_path = self._write_patch_file(patch_text) if patch_text.strip() else None
 
-        metadata["patched_files"] = [str(change.path) for change in file_changes]
-        metadata["patch_path"] = str(patch_path)
+        # Persist result
+        metadata = {
+            "task": self.task,
+            "model": config.model,
+            "session_id": self.session_id,
+            "repo_root": str(self.repo_root),
+            "context_files": [snippet.label for snippet in self.context_snippets],
+            "target_files": [str(f) for f in self.target_files],
+            "patched_files": [str(change.path) for change in file_changes],
+        }
+        if patch_path:
+            metadata["patch_path"] = str(patch_path)
+
+        transcript_path = persist_transcript(
+            task=self.task,
+            turns=[turn],
+            summary=content,
+            output_dir=self.session_dir,
+            metadata=metadata,
+        )
 
         return {
-            **result,
+            "summary": content,
+            "model": config.model,
+            "latency_ms": latency_ms,
+            "transcript_path": transcript_path,
             "patch_path": patch_path,
             "changes": file_changes,
             "diffs": file_diffs,
             "metadata": metadata,
         }
 
-    def _build_prompt(self, agent: AgentSpec, history: list[ChatTurn], round_index: int) -> str:
-        prompt = super()._build_prompt(agent, history, round_index)
-        additions: list[str] = []
-        if agent.name == "Implementer":
-            if self.target_files:
-                additions.append(
-                    "Modify these files: " + ", ".join(str(path) for path in self.target_files)
-                )
-            elif round_index == 0:
-                additions.append(
-                    "No target files were provided. Identify which files must change"
-                    " before you begin coding and clearly list them."
-                )
-            if round_index == self.rounds - 1:
-                additions.append(
-                    "THIS IS THE FINAL ROUND. Output the complete modified files"
-                    " using the fenced format for each file."
-                )
-        elif agent.name == "Reviewer" and round_index == self.rounds - 1:
-            additions.append(
-                "THIS IS THE FINAL REVIEW. Focus on bugs or blocking issues in the provided code."
-            )
+    def _build_prompt(self) -> str:
+        repo_context = self._build_repo_context()
+        target_instruction = ""
+        if self.target_files:
+            target_instruction = f"\nModify these files: {', '.join(str(p) for p in self.target_files)}"
+        else:
+            target_instruction = "\nIdentify which files must change and output them."
 
-        if additions:
-            prompt = f"{prompt}\n\nAdditional instructions:\n- " + "\n- ".join(additions)
-        return prompt
+        return textwrap.dedent(
+            f"""
+            {PATCHER_SYSTEM_PROMPT}
 
-    def _latest_implementer_turn(self, turns: list[ChatTurn]) -> ChatTurn | None:
-        for turn in reversed(turns):
-            if turn.role == "Implementer":
-                return turn
-        return None
+            Task: {self.task}{target_instruction}
 
-    def _latest_reviewer_turn(self, turns: list[ChatTurn]) -> ChatTurn | None:
-        for turn in reversed(turns):
-            if turn.role == "Reviewer":
-                return turn
-        return None
+            Repository context:
+            {repo_context}
+
+            Execute the patch now. Output complete file contents in fenced code blocks.
+            """
+        ).strip()
+
+    def _build_repo_context(self) -> str:
+        sections: list[str] = []
+        if self.repo_summary and self.repo_summary.text:
+            sections.append(self.repo_summary.text)
+        if self.repo_map and self.repo_map.symbols:
+            sections.append("# Repo symbol map\n" + self.repo_map.as_text())
+        for snippet in self.context_snippets:
+            sections.append(f"{snippet.label}\n{snippet.content}")
+        return "\n\n".join(sections) or "(no repo context)"
+
+    def _prepare_context(self, read_requests: Sequence[FileReadRequest]) -> None:
+        self.repo_summary = build_repo_summary(self.repo_root, max_chars=self.summary_chars)
+        self.repo_map = build_repomap(self.repo_root)
+        for request in read_requests:
+            try:
+                content = self.file_reader.read(request)
+                label = f"Snippet: {request.describe()}"
+            except Exception as exc:
+                content = f"Error reading {request.path}: {exc}"
+                label = f"Snippet error: {request.describe()}"
+            self.context_snippets.append(ContextSnippet(label=label, content=content))
 
     def _build_diffs(self, changes: Sequence[FileChange]) -> list[FileDiff]:
         diffs: list[FileDiff] = []
@@ -192,22 +205,11 @@ class PatchOrchestrator(ChatOrchestrator):
         patch_path.write_text((patch_text or "").strip() + "\n")
         return patch_path
 
-    def _analyze_review(self, reviewer_turn: ChatTurn | None) -> ReviewVerdict:
-        if not reviewer_turn:
-            return ReviewVerdict(approved=False, reason="No reviewer response")
-        text = reviewer_turn.content.lower()
-        if any(keyword in text for keyword in NEGATIVE_REVIEW_KEYWORDS):
-            return ReviewVerdict(approved=False, reason=reviewer_turn.content.strip())
-        if any(keyword in text for keyword in POSITIVE_REVIEW_KEYWORDS):
-            return ReviewVerdict(approved=True, reason=reviewer_turn.content.strip())
-        # Default to rejection if reviewer didn't explicitly approve
-        return ReviewVerdict(approved=False, reason="Reviewer did not approve (missing LGTM)")
-
 
 async def run_patch(
     *,
     task: str,
-    rounds: int = 4,
+    model: str | None = None,
     preset: str | None = None,
     config_path: str | Path | None = None,
     session_dir: str | Path = "sessions",
@@ -215,9 +217,24 @@ async def run_patch(
     read_requests: Sequence[FileReadRequest] | None = None,
     target_files: Sequence[str] | None = None,
 ) -> dict:
-    orchestrator = PatchOrchestrator(
+    """Execute a single-shot patch task.
+
+    Args:
+        task: The patch task description
+        model: Optional model override
+        preset: Config preset (lite/medium/large)
+        config_path: Path to models.yaml
+        session_dir: Where to save transcripts and patches
+        repo_root: Repository root directory
+        read_requests: Files to include as context
+        target_files: Files to patch (optional - minion can identify)
+
+    Returns:
+        dict with patch_path, changes, diffs, summary, model, latency_ms
+    """
+    executor = PatchExecutor(
         task=task,
-        rounds=rounds,
+        model=model,
         preset=preset,
         config_path=config_path,
         session_dir=session_dir,
@@ -225,7 +242,7 @@ async def run_patch(
         read_requests=read_requests,
         target_files=target_files,
     )
-    return await orchestrator.run()
+    return await executor.run()
 
 
-__all__ = ["PATCH_AGENTS", "PatchOrchestrator", "run_patch"]
+__all__ = ["PATCHER_SYSTEM_PROMPT", "PatchExecutor", "run_patch"]

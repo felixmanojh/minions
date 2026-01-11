@@ -9,6 +9,7 @@ from llm_gc.swarm import (
     Swarm,
     run_minion_task,
     simplify_prompt,
+    process_files,
 )
 
 # ─────────────────────────────────────────────────────────────
@@ -22,11 +23,10 @@ class TestMinionTask:
     def test_default_values(self):
         """Test default values are set correctly."""
         task = MinionTask(description="Test task")
-        assert task.kind == "chat"
+        assert task.kind == "task"
         assert task.target is None
         assert task.context_files == []
         assert task.repo_root == "."
-        assert task.rounds == 2
         assert task.retries == 0
         assert task.max_retries == 2
         assert task.status == "pending"
@@ -97,7 +97,6 @@ class TestSwarmInit:
         swarm = Swarm()
         assert swarm.workers == 5
         assert swarm.max_retries == 2
-        assert swarm.rounds == 2
         assert swarm.repo_root == "."
         assert swarm.tasks == []
         assert swarm.completed == []
@@ -105,10 +104,9 @@ class TestSwarmInit:
 
     def test_custom_values(self):
         """Test Swarm with custom values."""
-        swarm = Swarm(workers=10, max_retries=3, rounds=4, repo_root="/tmp")
+        swarm = Swarm(workers=10, max_retries=3, repo_root="/tmp")
         assert swarm.workers == 10
         assert swarm.max_retries == 3
-        assert swarm.rounds == 4
         assert swarm.repo_root == "/tmp"
 
 
@@ -120,15 +118,15 @@ class TestSwarmInit:
 class TestSwarmAddTasks:
     """Test adding tasks to Swarm."""
 
-    def test_add_chat(self):
-        """Test adding a chat task."""
+    def test_add_task(self):
+        """Test adding a task."""
         swarm = Swarm()
-        swarm.add_chat("Review this code", context_files=["src/main.py"])
+        swarm.add_task("Review this code", context_files=["src/main.py"])
 
         assert len(swarm.tasks) == 1
         task = swarm.tasks[0]
         assert task.description == "Review this code"
-        assert task.kind == "chat"
+        assert task.kind == "task"
         assert task.context_files == ["src/main.py"]
 
     def test_add_patch(self):
@@ -150,14 +148,50 @@ class TestSwarmAddTasks:
     def test_add_multiple_tasks(self):
         """Test adding multiple tasks."""
         swarm = Swarm()
-        swarm.add_chat("Review code")
+        swarm.add_task("Review code")
         swarm.add_patch("Fix bug", target="bug.py")
-        swarm.add_chat("Explain function")
+        swarm.add_task("Explain function")
 
         assert len(swarm.tasks) == 3
-        assert swarm.tasks[0].kind == "chat"
+        assert swarm.tasks[0].kind == "task"
         assert swarm.tasks[1].kind == "patch"
-        assert swarm.tasks[2].kind == "chat"
+        assert swarm.tasks[2].kind == "task"
+
+
+# ─────────────────────────────────────────────────────────────
+# Process Files Tests
+# ─────────────────────────────────────────────────────────────
+
+
+class TestProcessFiles:
+    """Test process_files method."""
+
+    def test_process_files_analyze(self, tmp_path):
+        """Test process_files with analyze action."""
+        # Create test files
+        (tmp_path / "a.py").write_text("# file a")
+        (tmp_path / "b.py").write_text("# file b")
+
+        swarm = Swarm(repo_root=str(tmp_path))
+        swarm.process_files("*.py", "Check {file} for issues", action="analyze")
+
+        assert len(swarm.tasks) == 2
+        for task in swarm.tasks:
+            assert task.kind == "task"
+            assert "Check " in task.description
+            assert " for issues" in task.description
+
+    def test_process_files_patch(self, tmp_path):
+        """Test process_files with patch action."""
+        (tmp_path / "a.py").write_text("# file a")
+
+        swarm = Swarm(repo_root=str(tmp_path))
+        swarm.process_files("*.py", "Add docstring to {file}", action="patch")
+
+        assert len(swarm.tasks) == 1
+        task = swarm.tasks[0]
+        assert task.kind == "patch"
+        assert task.target == "a.py"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -169,12 +203,12 @@ class TestSwarmAddTasks:
 class TestRunMinionTask:
     """Test individual task execution."""
 
-    async def test_chat_task_success(self):
-        """Test successful chat task execution."""
+    async def test_task_success(self):
+        """Test successful task execution."""
         task = MinionTask(description="Test task")
 
-        with patch("llm_gc.swarm.run_chat", new_callable=AsyncMock) as mock_chat:
-            mock_chat.return_value = {"summary": "Test result"}
+        with patch("llm_gc.swarm.run_task", new_callable=AsyncMock) as mock_task:
+            mock_task.return_value = {"summary": "Test result"}
             result = await run_minion_task(task)
 
         assert result.status == "completed"
@@ -215,8 +249,8 @@ class TestRunMinionTask:
         """Test task that throws exception."""
         task = MinionTask(description="Failing task")
 
-        with patch("llm_gc.swarm.run_chat", new_callable=AsyncMock) as mock_chat:
-            mock_chat.side_effect = Exception("Connection refused")
+        with patch("llm_gc.swarm.run_task", new_callable=AsyncMock) as mock_task:
+            mock_task.side_effect = Exception("Connection refused")
             result = await run_minion_task(task)
 
         assert result.status == "failed"
@@ -235,7 +269,7 @@ class TestSwarmRun:
     async def test_run_logs_progress(self):
         """Test that run() calls progress callback."""
         swarm = Swarm(workers=1)
-        swarm.add_chat("Test task")
+        swarm.add_task("Test task")
 
         progress_messages = []
 
@@ -263,8 +297,8 @@ class TestSwarmRun:
     async def test_stats_returned(self):
         """Test that run returns proper stats."""
         swarm = Swarm(workers=1)
-        swarm.add_chat("Task 1")
-        swarm.add_chat("Task 2")
+        swarm.add_task("Task 1")
+        swarm.add_task("Task 2")
 
         async def mock_gather(*args, **kwargs):
             # Close unawaited coroutines to avoid warnings

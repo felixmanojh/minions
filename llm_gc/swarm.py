@@ -1,12 +1,15 @@
-"""Swarm mode: parallel minion execution with auto-retry."""
+"""Swarm mode: parallel minion execution for file processing."""
 
 from __future__ import annotations
 
 import asyncio
+import glob as globlib
 import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Literal
 
 try:
     from tqdm import tqdm
@@ -17,7 +20,7 @@ except ImportError:
 
 from llm_gc.bananas import add_bananas, celebrate, get_bananas
 from llm_gc.metrics import log_metric
-from llm_gc.orchestrator.m1_chat import run_chat
+from llm_gc.orchestrator.m1_chat import run_task
 from llm_gc.orchestrator.m3_patch import run_patch
 from llm_gc.skill import parse_read_requests
 
@@ -27,11 +30,10 @@ class MinionTask:
     """A single task for a minion."""
 
     description: str
-    kind: str = "chat"  # "chat" or "patch"
+    kind: str = "task"  # "task", "patch", or "analyze"
     target: str | None = None
     context_files: list[str] = field(default_factory=list)
     repo_root: str = "."
-    rounds: int = 2  # Fewer rounds for speed
     retries: int = 0
     max_retries: int = 2
     status: str = "pending"
@@ -40,25 +42,21 @@ class MinionTask:
 
 
 def simplify_prompt(prompt: str, retry_count: int) -> str:
-    """Make prompt simpler for retry attempts (minion-speak)."""
+    """Make prompt simpler for retry attempts."""
     if retry_count == 0:
         return prompt
 
-    # Retry 1: Strip to essentials
     if retry_count == 1:
-        # Remove verbose language
         simple = prompt.replace("Please ", "").replace("Could you ", "")
         simple = simple.replace("I need you to ", "").replace("I want you to ", "")
-        # Add minion-speak directive
-        return f"SIMPLE TASK. ONE THING ONLY.\n{simple}\nOUTPUT ONLY THE RESULT. NO EXPLANATION."
+        return f"SIMPLE TASK.\n{simple}\nOUTPUT ONLY THE RESULT."
 
-    # Retry 2+: Ultra simple
-    words = prompt.split()[:20]  # First 20 words only
+    words = prompt.split()[:20]
     return f"DO THIS: {' '.join(words)}..."
 
 
 async def run_minion_task(task: MinionTask) -> MinionTask:
-    """Run a single minion task with retry logic."""
+    """Run a single minion task."""
     prompt = simplify_prompt(task.description, task.retries)
     start_time = time.time()
 
@@ -66,7 +64,6 @@ async def run_minion_task(task: MinionTask) -> MinionTask:
         if task.kind == "patch":
             result = await run_patch(
                 task=prompt,
-                rounds=task.rounds,
                 repo_root=task.repo_root,
                 read_requests=parse_read_requests(task.context_files),
                 target_files=[task.target] if task.target else [],
@@ -74,9 +71,8 @@ async def run_minion_task(task: MinionTask) -> MinionTask:
             task.result = str(result.get("patch_path", ""))
             task.status = "completed" if result.get("patch_path") else "empty"
         else:
-            result = await run_chat(
+            result = await run_task(
                 task=prompt,
-                rounds=task.rounds,
                 repo_root=task.repo_root,
                 read_requests=parse_read_requests(task.context_files),
             )
@@ -91,7 +87,7 @@ async def run_minion_task(task: MinionTask) -> MinionTask:
         task_type="swarm",
         task_description=task.description,
         duration_ms=duration_ms,
-        role="implementer" if task.kind == "patch" else "chat",
+        role="implementer",
         success=task.status == "completed",
         retries=task.retries,
         error=task.error,
@@ -101,38 +97,32 @@ async def run_minion_task(task: MinionTask) -> MinionTask:
     return task
 
 
-
-
-
 class Swarm:
-    """Dispatch multiple minions in parallel with auto-retry."""
+    """Dispatch multiple minions in parallel."""
 
     def __init__(
         self,
         workers: int = 5,
         max_retries: int = 2,
-        rounds: int = 2,
         repo_root: str = ".",
         show_progress: bool = True,
     ):
         self.workers = workers
         self.max_retries = max_retries
-        self.rounds = rounds
         self.repo_root = repo_root
         self.show_progress = show_progress and TQDM_AVAILABLE
         self.tasks: list[MinionTask] = []
         self.completed: list[MinionTask] = []
         self.failed: list[MinionTask] = []
 
-    def add_chat(self, description: str, context_files: list[str] = None) -> None:
-        """Add a chat task to the swarm."""
+    def add_task(self, description: str, context_files: list[str] | None = None) -> None:
+        """Add a single-shot task to the swarm."""
         self.tasks.append(
             MinionTask(
                 description=description,
-                kind="chat",
+                kind="task",
                 context_files=context_files or [],
                 repo_root=self.repo_root,
-                rounds=self.rounds,
                 max_retries=self.max_retries,
             )
         )
@@ -141,7 +131,7 @@ class Swarm:
         self,
         description: str,
         target: str,
-        context_files: list[str] = None,
+        context_files: list[str] | None = None,
     ) -> None:
         """Add a patch task to the swarm."""
         self.tasks.append(
@@ -151,13 +141,52 @@ class Swarm:
                 target=target,
                 context_files=context_files or [],
                 repo_root=self.repo_root,
-                rounds=self.rounds,
                 max_retries=self.max_retries,
             )
         )
 
-    async def run(self, on_progress: Callable[[str], None] = None) -> dict:
-        """Execute all tasks with parallel workers and auto-retry.
+    def process_files(
+        self,
+        pattern: str,
+        task: str,
+        action: Literal["analyze", "patch"] = "analyze",
+    ) -> None:
+        """Add tasks for all files matching a glob pattern.
+
+        Args:
+            pattern: Glob pattern (e.g., "src/*.py", "**/*.ts")
+            task: Task description (use {file} as placeholder)
+            action: "analyze" for read-only, "patch" for modifications
+
+        Example:
+            swarm.process_files(
+                pattern="src/**/*.py",
+                task="Add type hints to {file}",
+                action="patch"
+            )
+        """
+        root = Path(self.repo_root)
+        matches = list(root.glob(pattern))
+
+        for file_path in matches:
+            if file_path.is_file():
+                rel_path = str(file_path.relative_to(root))
+                file_task = task.replace("{file}", rel_path)
+
+                if action == "patch":
+                    self.add_patch(
+                        description=file_task,
+                        target=rel_path,
+                        context_files=[rel_path],
+                    )
+                else:
+                    self.add_task(
+                        description=file_task,
+                        context_files=[rel_path],
+                    )
+
+    async def run(self, on_progress: Callable[[str], None] | None = None) -> dict:
+        """Execute all tasks in parallel with auto-retry.
 
         Returns:
             dict with completed, failed, and stats
@@ -179,7 +208,6 @@ class Swarm:
         log(f"🍌 Swarm starting: {total} tasks, {self.workers} workers")
         start_time = time.time()
 
-        # Create progress bar if enabled
         pbar = None
         if self.show_progress:
             pbar = tqdm(
@@ -190,7 +218,6 @@ class Swarm:
             )
 
         while pending or retry_queue:
-            # Add retries to pending
             pending.extend(retry_queue)
             retry_queue = []
 
@@ -204,7 +231,7 @@ class Swarm:
 
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    task = pending[i]
+                    task = self.tasks[i] if i < len(self.tasks) else MinionTask(description="unknown")
                     task.error = str(result)
                     task.status = "failed"
                 else:
@@ -219,7 +246,6 @@ class Swarm:
                     else:
                         log(f"  🍌 Done: {task.description[:40]}...")
                 elif task.status == "empty":
-                    # Empty result, might retry
                     if task.retries < task.max_retries:
                         task.retries += 1
                         retry_queue.append(task)
@@ -253,12 +279,12 @@ class Swarm:
                             pbar.set_postfix_str("✗ failed")
                         else:
                             log(f"  ❌ Failed: {task.description[:40]}...")
+
         if pbar:
             pbar.close()
 
         elapsed = time.time() - start_time
 
-        # Award bananas for completed tasks!
         if completed_count > 0:
             new_total = add_bananas(completed_count, task_type="swarm")
             log(f"\n{celebrate(completed_count)}")
@@ -285,4 +311,29 @@ class Swarm:
         }
 
 
-__all__ = ["MinionTask", "Swarm", "simplify_prompt"]
+# Convenience function
+async def process_files(
+    pattern: str,
+    task: str,
+    action: Literal["analyze", "patch"] = "analyze",
+    repo_root: str = ".",
+    max_retries: int = 2,
+) -> dict:
+    """Process files matching a glob pattern in parallel.
+
+    Args:
+        pattern: Glob pattern (e.g., "src/*.py")
+        task: Task description (use {file} as placeholder)
+        action: "analyze" or "patch"
+        repo_root: Repository root
+        max_retries: Max retry attempts
+
+    Returns:
+        dict with completed, failed, stats
+    """
+    swarm = Swarm(repo_root=repo_root, max_retries=max_retries)
+    swarm.process_files(pattern, task, action)
+    return await swarm.run()
+
+
+__all__ = ["MinionTask", "Swarm", "process_files", "simplify_prompt"]

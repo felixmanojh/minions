@@ -10,7 +10,7 @@ allowed-tools: Bash, Read, Glob, Grep
 
 # Minion Fix
 
-Command your minion squad to produce a code patch. The Implementer writes the fix, the Reviewer critiques it, they iterate, and you get a unified diff ready to apply.
+Command a minion to produce a code patch. A single-shot task produces a unified diff ready to apply.
 
 ## Should I Use Minions? (Decision Guide)
 
@@ -131,8 +131,8 @@ patch -p1 --dry-run < sessions/20250111-120000-m3.patch
 
 If the patch is:
 - Empty or malformed → ask minions with more context, or handle manually
-- Touches many files → break into smaller tasks or handle with cloud reasoning
-- Requires architectural decisions → use minion-huddle first to discuss
+- Touches many files → break into smaller tasks or use /minion-swarm
+- Requires complex reasoning → use cloud models instead
 
 ## Troubleshooting
 

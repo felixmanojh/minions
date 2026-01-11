@@ -119,7 +119,7 @@ def check_venv(minions_dir: Path) -> bool:
 def check_skills_linked() -> dict[str, bool]:
     """Check which skills are symlinked."""
     skills_dir = Path.home() / ".claude" / "skills"
-    skills = ["minion-huddle", "minion-fix", "minion-queue", "minion-setup"]
+    skills = ["minion-fix", "minion-check", "minion-swarm", "minion-metrics", "minion-setup"]
 
     results = {}
     for skill in skills:
@@ -208,7 +208,7 @@ def main():
     if all_ok:
         print(f"{Colors.GREEN}All checks passed! Minions ready.{Colors.RESET}")
         print()
-        print("Try: /minion-huddle \"Review my code\"")
+        print("Try: /minion-fix or /minion-swarm")
     else:
         print(f"{Colors.YELLOW}Some issues found. See above for fixes.{Colors.RESET}")
 

@@ -1,10 +1,10 @@
-"""Minimal Implementer/Reviewer chat loop for Milestone M1."""
+"""Single-shot minion task execution - no rounds, no debate."""
 
 from __future__ import annotations
 
 import textwrap
-from collections.abc import Iterable, Sequence
-from dataclasses import asdict, dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -20,69 +20,42 @@ from llm_gc.tools.repomap import RepoMap, build_repomap
 
 
 @dataclass
-class AgentSpec:
-    name: str
-    config_key: str
-    system_message: str
-    response_limit: int = 200
-
-
-@dataclass
 class ContextSnippet:
     label: str
     content: str
 
 
-DEFAULT_AGENTS = [
-    AgentSpec(
-        name="Implementer",
-        config_key="implementer",
-        system_message=(
-            "You are a junior developer. Keep responses SHORT (under 150 words).\n"
-            "- List 2-3 bullet points max\n"
-            "- Focus on ONE thing at a time\n"
-            "- If asked for code, output ONLY the code, no explanations\n"
-            "- Don't overthink - just do the simple, obvious thing"
-        ),
-    ),
-    AgentSpec(
-        name="Reviewer",
-        config_key="reviewer",
-        system_message=(
-            "You are a code reviewer. Keep responses SHORT (under 100 words).\n"
-            "- Point out 1-2 issues max\n"
-            "- Be specific: line numbers, exact problems\n"
-            "- Say 'LGTM' if no issues\n"
-            "- Don't suggest improvements unless there's a bug"
-        ),
-    ),
-]
+# Single minion system prompt - focused on task completion
+MINION_SYSTEM_PROMPT = """You are a coding minion. Execute the task efficiently.
+
+Rules:
+- Be concise (under 200 words)
+- If asked for code, output ONLY the code
+- Focus on the task, nothing else
+- End with a one-line summary of what you did
+"""
 
 
-class ChatOrchestrator:
-    """Runs sequential turns between configured agents."""
+class MinionExecutor:
+    """Single-shot minion task executor."""
 
     def __init__(
         self,
         *,
         task: str,
-        rounds: int = 3,
+        model: str | None = None,
         preset: str | None = None,
         config_path: str | Path | None = None,
         session_dir: str | Path = "sessions",
-        agents: Iterable[AgentSpec] | None = None,
         repo_root: str | Path | None = None,
         read_requests: Sequence[FileReadRequest] | None = None,
         summary_chars: int = 4000,
     ) -> None:
-        if rounds < 1:
-            raise ValueError("rounds must be >= 1")
         self.task = task
-        self.rounds = rounds
         self.preset = preset
         self.session_dir = Path(session_dir)
-        self.agents = list(agents or DEFAULT_AGENTS)
         self.models = load_models(config_path, preset=preset)
+        self.model_override = model
         self.client = OllamaClient()
         self.repo_root = Path(repo_root or Path.cwd()).resolve()
         self.file_reader = FileReader(self.repo_root)
@@ -90,90 +63,78 @@ class ChatOrchestrator:
         self.repo_map: RepoMap | None = None
         self.summary_chars = summary_chars
         self.context_snippets: list[ContextSnippet] = []
-        self.session_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S-m2")
+        self.session_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S-minion")
         self._prepare_context(read_requests or [])
 
     async def run(self) -> dict:
-        """Execute the chat loop and persist transcript."""
+        """Execute single-shot task and return result."""
+        # Get model config (use implementer by default)
+        config = self.models.get("implementer")
+        if not config:
+            available = ", ".join(self.models.keys()) or "<empty>"
+            raise KeyError(f"No 'implementer' config found. Available: {available}")
 
-        history: list[ChatTurn] = []
-        for round_index in range(self.rounds):
-            for agent in self.agents:
-                turn = await self._produce_turn(agent, history, round_index)
-                history.append(turn)
-                render_turn(turn)
-        summary = history[-1].content if history else ""
+        # Override model if specified
+        if self.model_override:
+            config = config.__class__(
+                model=self.model_override,
+                temperature=config.temperature,
+                max_tokens=config.max_tokens,
+            )
+
+        # Build prompt and execute
+        prompt = self._build_prompt()
+        content, latency_ms = await self.client.prompt(prompt, config, role="implementer")
+        token_estimate = max(1, len(content.split()))
+
+        turn = ChatTurn(
+            role="Minion",
+            content=content,
+            latency_ms=latency_ms,
+            token_estimate=token_estimate,
+            model=config.model,
+            round_index=0,
+        )
+        render_turn(turn)
+
+        # Persist result
         metadata = {
             "task": self.task,
-            "rounds": self.rounds,
-            "agents": [asdict(agent) for agent in self.agents],
+            "model": config.model,
             "session_id": self.session_id,
             "repo_root": str(self.repo_root),
             "context_files": [snippet.label for snippet in self.context_snippets],
-            "repo_summary_sources": (self.repo_summary.sources if self.repo_summary else {}),
-            "symbol_count": len(self.repo_map.symbols) if self.repo_map else 0,
         }
         transcript_path = persist_transcript(
             task=self.task,
-            turns=history,
-            summary=summary,
+            turns=[turn],
+            summary=content,
             output_dir=self.session_dir,
             metadata=metadata,
         )
         summary_path = self._write_repo_summary_file()
+
         return {
-            "summary": summary,
-            "turns": history,
+            "summary": content,
+            "model": config.model,
+            "latency_ms": latency_ms,
             "transcript_path": transcript_path,
             "summary_path": summary_path,
             "metadata": metadata,
         }
 
-    async def _produce_turn(
-        self,
-        agent: AgentSpec,
-        history: list[ChatTurn],
-        round_index: int,
-    ) -> ChatTurn:
-        config = self.models.get(agent.config_key)
-        if not config:
-            available = ", ".join(self.models.keys()) or "<empty>"
-            raise KeyError(f"Config '{agent.config_key}' missing. Available: {available}")
-        prompt = self._build_prompt(agent, history, round_index)
-        content, latency_ms = await self.client.prompt(prompt, config)
-        token_estimate = max(1, len(content.split()))
-        return ChatTurn(
-            role=agent.name,
-            content=content,
-            latency_ms=latency_ms,
-            token_estimate=token_estimate,
-            model=config.model,
-            round_index=round_index,
-        )
-
-    def _build_prompt(self, agent: AgentSpec, history: list[ChatTurn], round_index: int) -> str:
-        context = "\n".join(f"{turn.role}: {turn.content}" for turn in history[-6:])
-        if not context:
-            context = "(conversation has not started)"
+    def _build_prompt(self) -> str:
         repo_context = self._build_repo_context()
         return textwrap.dedent(
             f"""
-            You are {agent.name}.
-            {agent.system_message}
+            {MINION_SYSTEM_PROMPT}
 
-            Primary task: {self.task}
+            Task: {self.task}
 
             Repository context:
             {repo_context}
 
-            Previous conversation:
-            {context}
-
-            Instructions:
-            - respond in <= {agent.response_limit} tokens
-            - do not execute commands or modify files
-            - focus on reasoning and clarity
-            - end with a short action summary line
+            Execute the task now.
             """
         ).strip()
 
@@ -194,7 +155,7 @@ class ChatOrchestrator:
             try:
                 content = self.file_reader.read(request)
                 label = f"Snippet: {request.describe()}"
-            except Exception as exc:  # pragma: no cover - surface errors to LLMs
+            except Exception as exc:
                 content = f"Error reading {request.path}: {exc}"
                 label = f"Snippet error: {request.describe()}"
             self.context_snippets.append(ContextSnippet(label=label, content=content))
@@ -209,32 +170,68 @@ class ChatOrchestrator:
         return path
 
 
-async def run_chat(
+async def run_task(
     *,
     task: str,
-    rounds: int = 3,
+    model: str | None = None,
     preset: str | None = None,
     config_path: str | Path | None = None,
     session_dir: str | Path = "sessions",
     repo_root: str | Path | None = None,
     read_requests: Sequence[FileReadRequest] | None = None,
 ) -> dict:
-    orchestrator = ChatOrchestrator(
+    """Execute a single minion task.
+
+    Args:
+        task: The task description
+        model: Optional model override
+        preset: Config preset (lite/medium/large)
+        config_path: Path to models.yaml
+        session_dir: Where to save transcripts
+        repo_root: Repository root directory
+        read_requests: Files to include as context
+
+    Returns:
+        dict with summary, model, latency_ms, paths
+    """
+    executor = MinionExecutor(
         task=task,
-        rounds=rounds,
+        model=model,
         preset=preset,
         config_path=config_path,
         session_dir=session_dir,
         repo_root=repo_root,
         read_requests=read_requests,
     )
-    return await orchestrator.run()
+    return await executor.run()
+
+
+# Backwards compatibility alias
+async def run_chat(
+    *,
+    task: str,
+    rounds: int = 1,  # Ignored - kept for API compatibility
+    preset: str | None = None,
+    config_path: str | Path | None = None,
+    session_dir: str | Path = "sessions",
+    repo_root: str | Path | None = None,
+    read_requests: Sequence[FileReadRequest] | None = None,
+) -> dict:
+    """Backwards-compatible wrapper for run_task."""
+    return await run_task(
+        task=task,
+        preset=preset,
+        config_path=config_path,
+        session_dir=session_dir,
+        repo_root=repo_root,
+        read_requests=read_requests,
+    )
 
 
 __all__ = [
-    "AgentSpec",
-    "ChatOrchestrator",
     "ContextSnippet",
-    "DEFAULT_AGENTS",
+    "MinionExecutor",
+    "MINION_SYSTEM_PROMPT",
+    "run_task",
     "run_chat",
 ]
