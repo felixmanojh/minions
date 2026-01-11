@@ -5,11 +5,10 @@
 #   reviewer    - Code review, bug detection
 #   patcher     - FIM (fill-in-middle), surgical edits, diffs
 #
-# Presets by hardware:
-#   nano   - 2GB RAM, ultra-light, basic tasks only
-#   small  - 4GB RAM, fast, acceptable quality
-#   medium - 8GB RAM, recommended balance (default)
-#   large  - 16GB+ RAM, best quality
+# Presets:
+#   lite   - 5GB, single model, basic features
+#   medium - 13GB, full 3-model setup (recommended)
+#   large  - 35GB, best quality, needs 32GB+ RAM
 #
 # Set preset via:
 #   1. Environment: MINIONS_PRESET=medium
@@ -22,37 +21,22 @@ preset: medium
 # Preset Definitions
 # ─────────────────────────────────────────────────────────────
 presets:
-  # Ultra-light: Runs anywhere (Raspberry Pi, old laptops)
-  nano:
+  # Lite: Single model for basic tasks
+  lite:
     implementer:
-      model: qwen2.5-coder:0.5b
+      model: qwen2.5-coder:7b
       temperature: 0.2
-      max_tokens: 256
+      max_tokens: 1024
     reviewer:
-      model: qwen2.5-coder:0.5b
+      model: qwen2.5-coder:7b
       temperature: 0.1
-      max_tokens: 200
+      max_tokens: 800
     patcher:
-      model: starcoder2:3b
+      model: qwen2.5-coder:7b
       temperature: 0.1
-      max_tokens: 512
+      max_tokens: 1024
 
-  # Fast local: Quick iterations, acceptable quality
-  small:
-    implementer:
-      model: qwen2.5-coder:1.5b
-      temperature: 0.2
-      max_tokens: 512
-    reviewer:
-      model: deepseek-coder:1.3b
-      temperature: 0.1
-      max_tokens: 400
-    patcher:
-      model: starcoder2:3b
-      temperature: 0.1
-      max_tokens: 768
-
-  # Recommended: Best balance of speed and quality
+  # Medium: Recommended - specialized models per role
   medium:
     implementer:
       model: qwen2.5-coder:7b
@@ -67,7 +51,7 @@ presets:
       temperature: 0.1
       max_tokens: 1024
 
-  # Best quality: For complex codebases
+  # Large: Best quality for complex codebases
   large:
     implementer:
       model: qwen2.5-coder:14b
@@ -83,7 +67,7 @@ presets:
       max_tokens: 2048
 
 # ─────────────────────────────────────────────────────────────
-# Role Specializations (why each model was chosen)
+# Role Specializations
 # ─────────────────────────────────────────────────────────────
 #
 # implementer: Qwen2.5-Coder
@@ -100,35 +84,11 @@ presets:
 #   - Trained specifically for fill-in-the-middle
 #   - Best at surgical edits and partial rewrites
 #   - 16K context for full-file + diff
-#   - Uses <fim_prefix>, <fim_suffix>, <fim_middle> tokens
-#
-# ─────────────────────────────────────────────────────────────
-# Alternative Models (language-specific or experimental)
-# ─────────────────────────────────────────────────────────────
-#
-# Systems/Rust focused:
-#   model: codegemma:7b
-#
-# Experimental (fast + reasoning):
-#   model: smollm3:3b  # When available in Ollama
-#
-# Multimodal (images + code):
-#   model: gemma3:4b
 #
 # ─────────────────────────────────────────────────────────────
 # Custom Overrides (uncomment to override preset roles)
 # ─────────────────────────────────────────────────────────────
 # implementer:
-#   model: codellama:7b-code
+#   model: codegemma:7b
 #   temperature: 0.2
-#   max_tokens: 1024
-#
-# reviewer:
-#   model: mistral:7b
-#   temperature: 0.1
-#   max_tokens: 800
-#
-# patcher:
-#   model: starcoder2:7b
-#   temperature: 0.1
 #   max_tokens: 1024

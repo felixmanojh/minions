@@ -45,30 +45,25 @@ Each minion has a specialized role with an optimized model:
 
 Choose based on your hardware:
 
-| Preset | RAM | Implementer | Reviewer | Patcher |
-|--------|-----|-------------|----------|---------|
-| nano | ~2GB | qwen2.5-coder:0.5b | qwen2.5-coder:0.5b | starcoder2:3b |
-| small | ~4GB | qwen2.5-coder:1.5b | deepseek-coder:1.3b | starcoder2:3b |
-| **medium** | ~8GB | qwen2.5-coder:7b | deepseek-coder:6.7b | starcoder2:7b |
-| large | ~25GB | qwen2.5-coder:14b | deepseek-coder:33b | starcoder2:15b |
+| Preset | Download | RAM | Models |
+|--------|----------|-----|--------|
+| lite | ~5GB | 8GB | Qwen2.5-Coder:7B (all roles) |
+| **medium** | ~13GB | 16GB | Qwen + DeepSeek + StarCoder2 (7B each) |
+| large | ~35GB | 32GB+ | 14B/33B/15B models |
+
+> **Note:** We removed sub-7B presets. Small models (1.5B) produce unreliable output.
 
 ## Quick Setup
 
 ```bash
-# Install Ollama
-brew install ollama  # macOS
-# or: curl -fsSL https://ollama.com/install.sh | sh  # Linux
+# One-liner install (recommended)
+curl -fsSL https://raw.githubusercontent.com/felixmanojh/minions/main/install.sh | bash
 
-# Start daemon
-ollama serve &
-
-# Pull models for medium preset (recommended)
+# Or manual setup:
+brew install ollama && ollama serve &
 ollama pull qwen2.5-coder:7b
 ollama pull deepseek-coder:6.7b
 ollama pull starcoder2:7b
-
-# Or set preset via environment
-export MINIONS_PRESET=medium
 ```
 
 ## Why These Models?

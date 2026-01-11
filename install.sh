@@ -42,18 +42,18 @@ detect_os() {
 }
 
 # Get models for a preset (Bash 3 compatible)
+# Each preset includes: implementer, reviewer, patcher (FIM specialist)
 get_preset_models() {
     case "$1" in
-        nano)   echo "qwen2.5-coder:0.5b" ;;
-        small)  echo "qwen2.5-coder:1.5b deepseek-coder:1.3b" ;;
-        medium) echo "qwen2.5-coder:7b deepseek-coder:6.7b" ;;
-        large)  echo "qwen2.5-coder:14b deepseek-coder:33b" ;;
+        medium) echo "qwen2.5-coder:7b deepseek-coder:6.7b starcoder2:7b" ;;
+        large)  echo "qwen2.5-coder:14b deepseek-coder:33b starcoder2:15b" ;;
+        lite)   echo "qwen2.5-coder:7b" ;;  # Single model, minimal install
         *)      echo "" ;;
     esac
 }
 
-# Default preset
-PRESET="${MINIONS_PRESET:-small}"
+# Default preset - 7B models recommended for quality
+PRESET="${MINIONS_PRESET:-medium}"
 
 # Banner
 echo -e "${BLUE}"
@@ -76,8 +76,9 @@ if [ "$OS" = "windows" ]; then
     echo "  2. Run the installer"
     echo "  3. Open PowerShell and run:"
     echo "     ollama serve"
-    echo "     ollama pull qwen2.5-coder:1.5b"
-    echo "     ollama pull deepseek-coder:1.3b"
+    echo "     ollama pull qwen2.5-coder:7b"
+    echo "     ollama pull deepseek-coder:6.7b"
+    echo "     ollama pull starcoder2:7b"
     echo ""
     echo "Then install the plugin: /plugin marketplace add felixmanojh/minions"
     exit 0
@@ -87,13 +88,17 @@ fi
 if [ -t 0 ] && [ -z "$MINIONS_PRESET" ]; then
     echo "Choose a model preset based on your hardware:"
     echo ""
-    echo "  nano   - ~1GB download  (fastest, basic quality)"
-    echo "  small  - ~2GB download  (good balance) [default]"
-    echo "  medium - ~8GB download  (better quality)"
-    echo "  large  - ~25GB download (best quality)"
+    echo "  medium - ~13GB download (recommended) [default]"
+    echo "           Qwen2.5-Coder:7B + DeepSeek-Coder:6.7B + StarCoder2:7B"
     echo ""
-    read -p "Preset [small]: " user_preset
-    PRESET="${user_preset:-small}"
+    echo "  large  - ~35GB download (best quality, needs 32GB+ RAM)"
+    echo "           Qwen2.5-Coder:14B + DeepSeek-Coder:33B + StarCoder2:15B"
+    echo ""
+    echo "  lite   - ~5GB download  (single model, basic features)"
+    echo "           Qwen2.5-Coder:7B only"
+    echo ""
+    read -p "Preset [medium]: " user_preset
+    PRESET="${user_preset:-medium}"
     echo ""
 fi
 
