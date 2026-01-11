@@ -1,0 +1,30 @@
+{
+  "name": "minions",
+  "version": "0.1.0",
+  "description": "Local LLM minions for Claude Code — summon a squad of small models to discuss, review, and patch your code privately and token-free.",
+  "author": "felixmanojh",
+  "license": "MIT",
+  "repository": "https://github.com/felixmanojh/minions",
+  "skills": [
+    {
+      "name": "minion-huddle",
+      "path": "skills/minion-huddle",
+      "description": "Multi-agent discussion - minions debate a topic and report findings"
+    },
+    {
+      "name": "minion-fix",
+      "path": "skills/minion-fix",
+      "description": "Patch generation - minions write code and produce a unified diff"
+    },
+    {
+      "name": "minion-queue",
+      "path": "skills/minion-queue",
+      "description": "Task batching - queue multiple jobs for async processing"
+    },
+    {
+      "name": "minion-setup",
+      "path": "skills/minion-setup",
+      "description": "Bootstrap and diagnostics - check/install Ollama and models"
+    }
+  ]
+}
