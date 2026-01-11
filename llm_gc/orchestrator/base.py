@@ -37,10 +37,19 @@ class ChatTurn:
 class OllamaClient:
     """Thin wrapper around the Ollama HTTP API."""
 
-    def __init__(self, base_url: str | None = None, timeout: float = 30.0) -> None:
-        self._client = httpx.AsyncClient(
-            base_url=base_url or get_ollama_base_url(), timeout=timeout
-        )
+    def __init__(self, base_url: str | None = None, timeout: float = 120.0) -> None:
+        self._base_url = base_url or get_ollama_base_url()
+        self._timeout = timeout
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create HTTP client."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                base_url=self._base_url,
+                timeout=self._timeout,
+            )
+        return self._client
 
     async def prompt(self, prompt: str, config: ModelConfig, role: str = "") -> tuple[str, float]:
         payload = {
@@ -56,10 +65,12 @@ class OllamaClient:
         success = True
         error_msg = None
         try:
-            response = await self._client.post("/api/generate", json=payload)
-            latency_ms = (perf_counter() - start) * 1000
-            response.raise_for_status()
-            data = response.json()
+            # Create fresh client for each request to avoid connection issues
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as client:
+                response = await client.post("/api/generate", json=payload)
+                latency_ms = (perf_counter() - start) * 1000
+                response.raise_for_status()
+                data = response.json()
             text = (data.get("response") or "").strip()
         except Exception as e:
             latency_ms = (perf_counter() - start) * 1000

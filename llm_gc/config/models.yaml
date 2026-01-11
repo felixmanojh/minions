@@ -27,7 +27,7 @@ roles:
       - qwen2.5-coder:7b
 
   reviewer:
-    primary: deepseek-coder:6.7b
+    primary: deepseek-coder:1.3b
     fallbacks:
       - qwen2.5-coder:7b
 
@@ -102,11 +102,11 @@ presets:
       temperature: 0.2
       max_tokens: 1024
     reviewer:
-      model: deepseek-coder:6.7b
+      model: deepseek-coder:1.3b
       temperature: 0.1
       max_tokens: 800
     patcher:
-      model: starcoder2:7b
+      model: qwen2.5-coder:7b
       temperature: 0.1
       max_tokens: 1024
 
