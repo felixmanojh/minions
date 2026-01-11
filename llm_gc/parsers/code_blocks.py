@@ -11,6 +11,14 @@ BLOCK_PATTERN = re.compile(
     re.DOTALL,
 )
 
+# Common language identifiers that are NOT file paths
+LANGUAGE_ONLY = frozenset({
+    "python", "py", "javascript", "js", "typescript", "ts", "java", "go",
+    "rust", "c", "cpp", "c++", "csharp", "cs", "ruby", "rb", "php", "swift",
+    "kotlin", "scala", "bash", "sh", "shell", "zsh", "sql", "html", "css",
+    "json", "yaml", "yml", "xml", "markdown", "md", "text", "txt", "diff",
+})
+
 
 @dataclass
 class FileChange:
@@ -20,14 +28,27 @@ class FileChange:
     content: str
 
 
-def parse_file_blocks(response: str) -> list[FileChange]:
-    """Parse ```path\ncontent``` blocks from an LLM response."""
+def parse_file_blocks(
+    response: str,
+    fallback_path: Path | str | None = None,
+) -> list[FileChange]:
+    """Parse ```path\ncontent``` blocks from an LLM response.
 
+    Args:
+        response: LLM response text containing fenced code blocks.
+        fallback_path: Path to use when fence contains only a language name.
+    """
     changes: list[FileChange] = []
     for match in BLOCK_PATTERN.finditer(response or ""):
         raw_path = match.group("path").strip()
         content = match.group("content")
-        path = Path(raw_path)
+
+        # If fence is just a language name, use fallback path
+        if raw_path.lower() in LANGUAGE_ONLY and fallback_path:
+            path = Path(fallback_path)
+        else:
+            path = Path(raw_path)
+
         # Strip trailing fence artifacts/newlines
         content = content.rstrip("`\n\r")
         changes.append(FileChange(path=path, content=content))

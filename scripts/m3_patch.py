@@ -24,7 +24,6 @@ from llm_gc.skill import parse_read_requests
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run patch-focused Implementer/Reviewer chat")
     parser.add_argument("task", help="Natural language task description")
-    parser.add_argument("--rounds", type=int, default=4, help="Total number of rounds")
     parser.add_argument(
         "--preset",
         choices=["nano", "small", "medium", "large"],
@@ -70,7 +69,6 @@ async def main() -> None:
     read_requests = parse_read_requests(args.read)
     result = await run_patch(
         task=args.task,
-        rounds=args.rounds,
         preset=args.preset,
         config_path=args.config,
         session_dir=args.sessions,
@@ -82,7 +80,6 @@ async def main() -> None:
     if args.json:
         payload = {
             "task": args.task,
-            "rounds": args.rounds,
             "preset": args.preset or "default",
             "repo_root": str(args.repo_root),
             "read_requests": [req.describe() for req in read_requests],

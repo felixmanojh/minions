@@ -104,7 +104,9 @@ class PatchExecutor:
         render_turn(turn)
 
         # Parse file changes and generate diff
-        file_changes = parse_file_blocks(content)
+        # Use first target file as fallback if model outputs just language name
+        fallback = self.target_files[0] if self.target_files else None
+        file_changes = parse_file_blocks(content, fallback_path=fallback)
         file_diffs = self._build_diffs(file_changes)
         patch_text = generate_multi_diff(file_diffs)
         patch_path = self._write_patch_file(patch_text) if patch_text.strip() else None

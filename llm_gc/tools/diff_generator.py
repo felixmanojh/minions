@@ -17,18 +17,25 @@ class FileDiff:
 def generate_diff(original: str, modified: str, filepath: Path) -> FileDiff:
     """Return a unified diff for a single file."""
 
-    original_lines = original.splitlines(keepends=True)
-    modified_lines = modified.splitlines(keepends=True)
+    # Normalize line endings and split without keeping them
+    original_lines = original.replace("\r\n", "\n").splitlines(keepends=False)
+    modified_lines = modified.replace("\r\n", "\n").splitlines(keepends=False)
+
+    # Add newlines back for difflib (it expects them for proper output)
+    original_lines = [line + "\n" for line in original_lines]
+    modified_lines = [line + "\n" for line in modified_lines]
+
     header_from = f"a/{filepath}"
     header_to = f"b/{filepath}"
-    diff_lines = difflib.unified_diff(
+    diff_lines = list(difflib.unified_diff(
         original_lines,
         modified_lines,
         fromfile=header_from,
         tofile=header_to,
-        lineterm="",
-    )
-    diff_text = "\n".join(diff_lines)
+    ))
+
+    # Join without extra newlines (unified_diff output already has them)
+    diff_text = "".join(diff_lines)
     return FileDiff(path=filepath, diff=diff_text)
 
 
