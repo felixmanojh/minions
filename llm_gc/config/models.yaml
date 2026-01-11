@@ -1,0 +1,78 @@
+# Minions Model Configuration
+#
+# Choose a preset based on your hardware, or define custom models.
+# All models must be available in Ollama (run: ollama list)
+#
+# Presets:
+#   nano   - 1-2GB RAM, fastest, least capable
+#   small  - 4GB RAM, good balance (default)
+#   medium - 8GB RAM, better quality
+#   large  - 16GB+ RAM, best quality
+#
+# To use a preset, set: preset: small
+# To use custom models, comment out preset and define roles below.
+
+preset: small
+
+# ─────────────────────────────────────────────────────────────
+# Preset Definitions (don't edit unless adding new presets)
+# ─────────────────────────────────────────────────────────────
+presets:
+  nano:
+    implementer:
+      model: qwen2.5-coder:0.5b
+      temperature: 0.2
+      max_tokens: 256
+    reviewer:
+      model: qwen2.5-coder:0.5b
+      temperature: 0.15
+      max_tokens: 256
+
+  small:
+    implementer:
+      model: qwen2.5-coder:1.5b
+      temperature: 0.2
+      max_tokens: 512
+    reviewer:
+      model: deepseek-coder:1.3b
+      temperature: 0.15
+      max_tokens: 400
+
+  medium:
+    implementer:
+      model: qwen2.5-coder:7b
+      temperature: 0.2
+      max_tokens: 1024
+    reviewer:
+      model: deepseek-coder:6.7b
+      temperature: 0.15
+      max_tokens: 800
+
+  large:
+    implementer:
+      model: qwen2.5-coder:14b
+      temperature: 0.2
+      max_tokens: 2048
+    reviewer:
+      model: deepseek-coder:33b
+      temperature: 0.15
+      max_tokens: 1500
+
+# ─────────────────────────────────────────────────────────────
+# Custom Models (uncomment and edit to override preset)
+# ─────────────────────────────────────────────────────────────
+# implementer:
+#   model: codellama:7b-code
+#   temperature: 0.2
+#   max_tokens: 1024
+#
+# reviewer:
+#   model: mistral:7b
+#   temperature: 0.15
+#   max_tokens: 800
+#
+# # Add custom roles
+# bughunter:
+#   model: codellama:13b-instruct
+#   temperature: 0.3
+#   max_tokens: 1000
