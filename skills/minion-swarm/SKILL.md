@@ -25,7 +25,8 @@ Dispatch many minions in parallel with auto-retry. Like Gru commanding his minio
 | Parallel execution | Multiple minions work simultaneously |
 | Auto-retry | Failed tasks retry with simpler prompts |
 | Minion-speak | Prompts get simplified on retry |
-| Progress feedback | 🍌 bananas for completed tasks |
+| 🍌 Banana counter | Track successful completions across sessions |
+| Streaks | Daily streak tracking for productivity |
 
 ## Usage
 
@@ -103,10 +104,39 @@ This helps small models focus on the essential task.
     "completed": 4,
     "failed": 1,
     "retries": 2,
-    "elapsed_seconds": 45.2
+    "elapsed_seconds": 45.2,
+    "bananas_earned": 4,
+    "bananas_total": 127
   }
 }
 ```
+
+## Banana Stats 🍌
+
+Track your minion productivity across sessions!
+
+```bash
+# View your banana stats
+python scripts/bananas.py
+
+# Output:
+# ========================================
+# 🍌 BANANA STATS 🍌
+# ========================================
+# Total bananas: 127
+# Today: 15
+# Current streak: 3 days
+# Best streak: 7 days
+#
+# 🍌🍌🍌🍌🍌 x20+
+# ========================================
+```
+
+Banana milestones:
+- 🍌 < 10: Getting started
+- 🍌🍌🍌🍌🍌 x10: Regular user
+- 🍌🍌🍌🍌🍌 x20+: Power user
+- 🍌👑: BANANA KING! (500+)
 
 ## Options
 

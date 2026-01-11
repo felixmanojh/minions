@@ -12,6 +12,7 @@ import time
 from llm_gc.orchestrator.m1_chat import run_chat
 from llm_gc.orchestrator.m3_patch import run_patch
 from llm_gc.skill import parse_read_requests
+from llm_gc.bananas import add_bananas, celebrate, get_bananas
 
 
 @dataclass
@@ -232,6 +233,13 @@ class Swarm:
                         log(f"  ❌ Error: {e}")
 
         elapsed = time.time() - start_time
+
+        # Award bananas for completed tasks!
+        if completed_count > 0:
+            new_total = add_bananas(completed_count, task_type="swarm")
+            log(f"\n{celebrate(completed_count)}")
+            log(f"🍌 Total bananas: {new_total}")
+
         log(f"\n🍌 Swarm complete! {completed_count}/{total} succeeded in {elapsed:.1f}s")
         if retry_count:
             log(f"   Retries: {retry_count}")
@@ -247,6 +255,8 @@ class Swarm:
                 "failed": failed_count,
                 "retries": retry_count,
                 "elapsed_seconds": elapsed,
+                "bananas_earned": completed_count,
+                "bananas_total": get_bananas(),
             }
         }
 
