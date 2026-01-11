@@ -41,12 +41,16 @@ detect_os() {
     esac
 }
 
-# Model presets
-declare -A PRESET_MODELS
-PRESET_MODELS["nano"]="qwen2.5-coder:0.5b"
-PRESET_MODELS["small"]="qwen2.5-coder:1.5b deepseek-coder:1.3b"
-PRESET_MODELS["medium"]="qwen2.5-coder:7b deepseek-coder:6.7b"
-PRESET_MODELS["large"]="qwen2.5-coder:14b deepseek-coder:33b"
+# Get models for a preset (Bash 3 compatible)
+get_preset_models() {
+    case "$1" in
+        nano)   echo "qwen2.5-coder:0.5b" ;;
+        small)  echo "qwen2.5-coder:1.5b deepseek-coder:1.3b" ;;
+        medium) echo "qwen2.5-coder:7b deepseek-coder:6.7b" ;;
+        large)  echo "qwen2.5-coder:14b deepseek-coder:33b" ;;
+        *)      echo "" ;;
+    esac
+}
 
 # Default preset
 PRESET="${MINIONS_PRESET:-small}"
@@ -94,14 +98,14 @@ if [ -t 0 ] && [ -z "$MINIONS_PRESET" ]; then
 fi
 
 # Validate preset
-if [ -z "${PRESET_MODELS[$PRESET]}" ]; then
+MODELS_STR=$(get_preset_models "$PRESET")
+if [ -z "$MODELS_STR" ]; then
     error "Unknown preset: $PRESET"
     echo "Valid presets: nano, small, medium, large"
     exit 1
 fi
 
 info "Using preset: $PRESET"
-read -ra MODELS <<< "${PRESET_MODELS[$PRESET]}"
 
 # Step 1: Check/Install Ollama
 echo ""
@@ -165,8 +169,7 @@ fi
 # Step 3: Pull models
 info "Pulling models for '$PRESET' preset..."
 
-for model in "${MODELS[@]}"; do
-    model_name=$(echo "$model" | cut -d: -f1)
+for model in $MODELS_STR; do
     if ollama list 2>/dev/null | grep -q "$model"; then
         success "Model $model already available"
     else
@@ -209,7 +212,7 @@ echo ""
 echo "Status:"
 check_command ollama && echo -e "  ${GREEN}✓${NC} Ollama installed" || echo -e "  ${RED}✗${NC} Ollama missing"
 curl -s http://127.0.0.1:11434/api/tags >/dev/null && echo -e "  ${GREEN}✓${NC} Ollama running" || echo -e "  ${RED}✗${NC} Ollama not running"
-for model in "${MODELS[@]}"; do
+for model in $MODELS_STR; do
     if ollama list 2>/dev/null | grep -q "$model"; then
         echo -e "  ${GREEN}✓${NC} $model"
     else
