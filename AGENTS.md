@@ -43,15 +43,13 @@ Each minion has a specialized role with an optimized model:
 
 ## Presets
 
-Choose based on your hardware:
+| Preset | Download | RAM | Description |
+|--------|----------|-----|-------------|
+| lite | ~5GB | 8GB | Single strong generalist model |
+| **medium** | ~13GB | 16GB | Specialized model per role (recommended) |
+| large | ~35GB | 32GB+ | Best for large repo refactoring |
 
-| Preset | Download | RAM | Models |
-|--------|----------|-----|--------|
-| lite | ~5GB | 8GB | Qwen2.5-Coder:7B (all roles) |
-| **medium** | ~13GB | 16GB | Qwen + DeepSeek + StarCoder2 (7B each) |
-| large | ~35GB | 32GB+ | 14B/33B/15B models |
-
-> **Note:** We removed sub-7B presets. Small models (1.5B) produce unreliable output.
+Minions auto-assigns the right model per task. Override in `llm_gc/config/models.yaml`.
 
 ## Quick Setup
 
