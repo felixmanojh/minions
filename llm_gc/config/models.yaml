@@ -1,27 +1,87 @@
 # Minions Model Configuration
 #
-# Role-based model selection optimized for different tasks:
-#   implementer - Code generation, feature implementation
-#   reviewer    - Code review, bug detection
-#   patcher     - FIM (fill-in-middle), surgical edits, diffs
+# Minions auto assigns the right model per task:
+#   • Implementer → code generation and refactors
+#   • Reviewer    → correctness, bugs, and safety checks
+#   • Patcher     → surgical edits and FIM
 #
 # Presets:
-#   lite   - 5GB, single model, basic features
-#   medium - 13GB, full 3-model setup (recommended)
-#   large  - 35GB, best quality, needs 32GB+ RAM
+#   lite   - 5GB, single model for smaller projects
+#   medium - 13GB, specialized model per role (recommended)
+#   large  - 35GB, best for large repo refactoring
 #
-# Set preset via:
-#   1. Environment: MINIONS_PRESET=medium
-#   2. This file: preset: medium
-#   3. Custom roles below (overrides preset)
+# Override per role via environment:
+#   MINIONS_IMPLEMENTER_MODEL=codegemma:7b
+#   MINIONS_REVIEWER_MODEL=mistral:7b
+#   MINIONS_PATCHER_MODEL=starcoder2:7b
 
 preset: medium
 
 # ─────────────────────────────────────────────────────────────
-# Preset Definitions
+# Role Definitions
+# ─────────────────────────────────────────────────────────────
+roles:
+  implementer:
+    primary: qwen2.5-coder:7b
+    fallbacks:
+      - qwen2.5-coder:7b
+
+  reviewer:
+    primary: deepseek-coder:6.7b
+    fallbacks:
+      - qwen2.5-coder:7b
+
+  patcher:
+    primary: starcoder2:7b
+    fallbacks:
+      - qwen2.5-coder:7b
+
+# ─────────────────────────────────────────────────────────────
+# Routing Rules (keyword matching, first match wins)
+# ─────────────────────────────────────────────────────────────
+routing:
+  # Patcher: surgical edits, FIM, minimal diffs
+  patcher_keywords:
+    - patch
+    - diff
+    - edit
+    - surgical
+    - fim
+    - apply
+    - insert
+    - replace
+
+  # Reviewer: validation, bugs, security
+  reviewer_keywords:
+    - review
+    - bug
+    - debug
+    - issue
+    - vulnerability
+    - security
+    - correctness
+    - audit
+    - validate
+    - check
+
+  # Implementer: code generation (default)
+  implementer_keywords:
+    - implement
+    - build
+    - create
+    - generate
+    - refactor
+    - rewrite
+    - optimize
+    - tests
+    - document
+    - add
+    - write
+
+# ─────────────────────────────────────────────────────────────
+# Preset Overrides (for backwards compatibility)
 # ─────────────────────────────────────────────────────────────
 presets:
-  # Lite: Single model for basic tasks
   lite:
     implementer:
       model: qwen2.5-coder:7b
@@ -36,7 +96,6 @@ presets:
       temperature: 0.1
       max_tokens: 1024
 
-  # Medium: Recommended - specialized models per role
   medium:
     implementer:
       model: qwen2.5-coder:7b
@@ -51,7 +110,6 @@ presets:
       temperature: 0.1
       max_tokens: 1024
 
-  # Large: Best quality for complex codebases
   large:
     implementer:
       model: qwen2.5-coder:14b
@@ -65,30 +123,3 @@ presets:
       model: starcoder2:15b
       temperature: 0.1
       max_tokens: 2048
-
-# ─────────────────────────────────────────────────────────────
-# Role Specializations
-# ─────────────────────────────────────────────────────────────
-#
-# implementer: Qwen2.5-Coder
-#   - Best overall coding model under 10B
-#   - 92+ languages, near GPT-4o on benchmarks
-#   - Strong at generation and reasoning
-#
-# reviewer: DeepSeek-Coder
-#   - 300+ languages, great at finding bugs
-#   - "Immediately usable" suggestions
-#   - Good at explaining issues concisely
-#
-# patcher: StarCoder2 (FIM specialist)
-#   - Trained specifically for fill-in-the-middle
-#   - Best at surgical edits and partial rewrites
-#   - 16K context for full-file + diff
-#
-# ─────────────────────────────────────────────────────────────
-# Custom Overrides (uncomment to override preset roles)
-# ─────────────────────────────────────────────────────────────
-# implementer:
-#   model: codegemma:7b
-#   temperature: 0.2
-#   max_tokens: 1024
