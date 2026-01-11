@@ -120,6 +120,8 @@ Bootstrap and diagnostics. Check/install Ollama, models, and dependencies.
 | **medium** | ~13GB | 16GB | Specialized model per role (recommended) |
 | large | ~35GB | 32GB+ | Best for large repo refactoring |
 
+> Note: download size varies slightly by quantization and platform.
+
 Set via environment: `MINIONS_PRESET=medium`
 
 ## Configuration
