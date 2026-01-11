@@ -93,13 +93,13 @@ class ChatOrchestrator:
         self.session_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S-m2")
         self._prepare_context(read_requests or [])
 
-    def run(self) -> dict:
+    async def run(self) -> dict:
         """Execute the chat loop and persist transcript."""
 
         history: list[ChatTurn] = []
         for round_index in range(self.rounds):
             for agent in self.agents:
-                turn = self._produce_turn(agent, history, round_index)
+                turn = await self._produce_turn(agent, history, round_index)
                 history.append(turn)
                 render_turn(turn)
         summary = history[-1].content if history else ""
@@ -129,7 +129,7 @@ class ChatOrchestrator:
             "metadata": metadata,
         }
 
-    def _produce_turn(
+    async def _produce_turn(
         self,
         agent: AgentSpec,
         history: list[ChatTurn],
@@ -140,7 +140,7 @@ class ChatOrchestrator:
             available = ", ".join(self.models.keys()) or "<empty>"
             raise KeyError(f"Config '{agent.config_key}' missing. Available: {available}")
         prompt = self._build_prompt(agent, history, round_index)
-        content, latency_ms = self.client.generate(prompt, config)
+        content, latency_ms = await self.client.prompt(prompt, config)
         token_estimate = max(1, len(content.split()))
         return ChatTurn(
             role=agent.name,
@@ -209,7 +209,7 @@ class ChatOrchestrator:
         return path
 
 
-def run_chat(
+async def run_chat(
     *,
     task: str,
     rounds: int = 3,
@@ -228,7 +228,7 @@ def run_chat(
         repo_root=repo_root,
         read_requests=read_requests,
     )
-    return orchestrator.run()
+    return await orchestrator.run()
 
 
 __all__ = [

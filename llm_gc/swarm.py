@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import time
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 try:
@@ -56,13 +56,13 @@ def simplify_prompt(prompt: str, retry_count: int) -> str:
     return f"DO THIS: {' '.join(words)}..."
 
 
-def run_minion_task(task: MinionTask) -> MinionTask:
+async def run_minion_task(task: MinionTask) -> MinionTask:
     """Run a single minion task with retry logic."""
     prompt = simplify_prompt(task.description, task.retries)
 
     try:
         if task.kind == "patch":
-            result = run_patch(
+            result = await run_patch(
                 task=prompt,
                 rounds=task.rounds,
                 repo_root=task.repo_root,
@@ -72,7 +72,7 @@ def run_minion_task(task: MinionTask) -> MinionTask:
             task.result = str(result.get("patch_path", ""))
             task.status = "completed" if result.get("patch_path") else "empty"
         else:
-            result = run_chat(
+            result = await run_chat(
                 task=prompt,
                 rounds=task.rounds,
                 repo_root=task.repo_root,
@@ -87,23 +87,7 @@ def run_minion_task(task: MinionTask) -> MinionTask:
     return task
 
 
-def _worker(task_dict: dict) -> dict:
-    """Pickle-friendly worker wrapper."""
-    task = MinionTask(**task_dict)
-    result = run_minion_task(task)
-    return {
-        "description": result.description,
-        "kind": result.kind,
-        "target": result.target,
-        "context_files": result.context_files,
-        "repo_root": result.repo_root,
-        "rounds": result.rounds,
-        "retries": result.retries,
-        "max_retries": result.max_retries,
-        "status": result.status,
-        "result": result.result,
-        "error": result.error,
-    }
+
 
 
 class Swarm:
@@ -158,7 +142,7 @@ class Swarm:
             )
         )
 
-    def run(self, on_progress: Callable[[str], None] = None) -> dict:
+    async def run(self, on_progress: Callable[[str], None] = None) -> dict:
         """Execute all tasks with parallel workers and auto-retry.
 
         Returns:
@@ -200,83 +184,61 @@ class Swarm:
                 break
 
             # Run batch
-            with ProcessPoolExecutor(max_workers=self.workers) as executor:
-                task_dicts = [
-                    {
-                        "description": t.description,
-                        "kind": t.kind,
-                        "target": t.target,
-                        "context_files": t.context_files,
-                        "repo_root": t.repo_root,
-                        "rounds": t.rounds,
-                        "retries": t.retries,
-                        "max_retries": t.max_retries,
-                        "status": t.status,
-                        "result": t.result,
-                        "error": t.error,
-                    }
-                    for t in pending
-                ]
+            task_coroutines = [run_minion_task(task) for task in pending]
+            results = await asyncio.gather(*task_coroutines, return_exceptions=True)
+            pending = []
 
-                futures = {executor.submit(_worker, d): d for d in task_dicts}
-                pending = []
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    task = pending[i]
+                    task.error = str(result)
+                    task.status = "failed"
+                else:
+                    task = result
 
-                for future in as_completed(futures):
-                    try:
-                        result = future.result()
-                        task = MinionTask(**result)
-
-                        if task.status == "completed":
-                            self.completed.append(task)
-                            completed_count += 1
-                            if pbar:
-                                pbar.update(1)
-                                pbar.set_postfix_str(f"✓ {task.description[:25]}...")
-                            else:
-                                log(f"  🍌 Done: {task.description[:40]}...")
-                        elif task.status == "empty":
-                            # Empty result, might retry
-                            if task.retries < task.max_retries:
-                                task.retries += 1
-                                retry_queue.append(task)
-                                retry_count += 1
-                                if pbar:
-                                    pbar.set_postfix_str(f"↻ retry {task.retries}")
-                                else:
-                                    log(f"  🔄 Retry {task.retries}: {task.description[:40]}...")
-                            else:
-                                self.failed.append(task)
-                                failed_count += 1
-                                if pbar:
-                                    pbar.update(1)
-                                    pbar.set_postfix_str("✗ empty")
-                                else:
-                                    log(f"  ❌ Empty: {task.description[:40]}...")
-                        else:  # failed
-                            if task.retries < task.max_retries:
-                                task.retries += 1
-                                retry_queue.append(task)
-                                retry_count += 1
-                                if pbar:
-                                    pbar.set_postfix_str(f"↻ retry {task.retries}")
-                                else:
-                                    log(f"  🔄 Retry {task.retries}: {task.description[:40]}...")
-                            else:
-                                self.failed.append(task)
-                                failed_count += 1
-                                if pbar:
-                                    pbar.update(1)
-                                    pbar.set_postfix_str("✗ failed")
-                                else:
-                                    log(f"  ❌ Failed: {task.description[:40]}...")
-                    except Exception as e:
+                if task.status == "completed":
+                    self.completed.append(task)
+                    completed_count += 1
+                    if pbar:
+                        pbar.update(1)
+                        pbar.set_postfix_str(f"✓ {task.description[:25]}...")
+                    else:
+                        log(f"  🍌 Done: {task.description[:40]}...")
+                elif task.status == "empty":
+                    # Empty result, might retry
+                    if task.retries < task.max_retries:
+                        task.retries += 1
+                        retry_queue.append(task)
+                        retry_count += 1
+                        if pbar:
+                            pbar.set_postfix_str(f"↻ retry {task.retries}")
+                        else:
+                            log(f"  🔄 Retry {task.retries}: {task.description[:40]}...")
+                    else:
+                        self.failed.append(task)
                         failed_count += 1
                         if pbar:
                             pbar.update(1)
-                            pbar.set_postfix_str("✗ error")
+                            pbar.set_postfix_str("✗ empty")
                         else:
-                            log(f"  ❌ Error: {e}")
-
+                            log(f"  ❌ Empty: {task.description[:40]}...")
+                else:  # failed
+                    if task.retries < task.max_retries:
+                        task.retries += 1
+                        retry_queue.append(task)
+                        retry_count += 1
+                        if pbar:
+                            pbar.set_postfix_str(f"↻ retry {task.retries}")
+                        else:
+                            log(f"  🔄 Retry {task.retries}: {task.description[:40]}...")
+                    else:
+                        self.failed.append(task)
+                        failed_count += 1
+                        if pbar:
+                            pbar.update(1)
+                            pbar.set_postfix_str("✗ failed")
+                        else:
+                            log(f"  ❌ Failed: {task.description[:40]}...")
         if pbar:
             pbar.close()
 
@@ -309,50 +271,4 @@ class Swarm:
         }
 
 
-def swarm_dispatch(
-    tasks: list[dict],
-    workers: int = 5,
-    max_retries: int = 2,
-    repo_root: str = ".",
-    show_progress: bool = True,
-) -> dict:
-    """Convenience function to dispatch multiple tasks.
-
-    Args:
-        tasks: List of dicts with keys:
-            - description: str (required)
-            - kind: "chat" or "patch" (default: "chat")
-            - target: str (required for patch)
-            - context_files: List[str] (optional)
-        workers: Number of parallel workers
-        max_retries: Max retries per task
-        repo_root: Repository root path
-        show_progress: Show tqdm progress bar
-
-    Returns:
-        Results dict with completed, failed, and stats
-    """
-    swarm = Swarm(
-        workers=workers,
-        max_retries=max_retries,
-        repo_root=repo_root,
-        show_progress=show_progress,
-    )
-
-    for t in tasks:
-        if t.get("kind") == "patch":
-            swarm.add_patch(
-                description=t["description"],
-                target=t["target"],
-                context_files=t.get("context_files", []),
-            )
-        else:
-            swarm.add_chat(
-                description=t["description"],
-                context_files=t.get("context_files", []),
-            )
-
-    return swarm.run()
-
-
-__all__ = ["MinionTask", "Swarm", "swarm_dispatch", "simplify_prompt"]
+__all__ = ["MinionTask", "Swarm", "simplify_prompt"]

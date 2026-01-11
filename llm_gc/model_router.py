@@ -15,6 +15,8 @@ from pathlib import Path
 
 import yaml
 
+from llm_gc.ollama import get_ollama_base_url
+
 ROLE_IMPLEMENTER = "implementer"
 ROLE_REVIEWER = "reviewer"
 ROLE_PATCHER = "patcher"
@@ -238,7 +240,7 @@ def validate_model_available(model: str) -> bool:
     try:
         import httpx
 
-        resp = httpx.get("http://127.0.0.1:11434/api/tags", timeout=5.0)
+        resp = httpx.get(f"{get_ollama_base_url()}/api/tags", timeout=5.0)
         if resp.status_code != 200:
             return False
         data = resp.json()

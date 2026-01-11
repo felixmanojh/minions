@@ -13,6 +13,7 @@ import httpx
 from rich.console import Console
 
 from llm_gc.config import ModelConfig
+from llm_gc.ollama import get_ollama_base_url
 
 console = Console()
 
@@ -35,10 +36,12 @@ class ChatTurn:
 class OllamaClient:
     """Thin wrapper around the Ollama HTTP API."""
 
-    def __init__(self, base_url: str = "http://127.0.0.1:11434", timeout: float = 30.0) -> None:
-        self._client = httpx.Client(base_url=base_url, timeout=timeout)
+    def __init__(self, base_url: str | None = None, timeout: float = 30.0) -> None:
+        self._client = httpx.AsyncClient(
+            base_url=base_url or get_ollama_base_url(), timeout=timeout
+        )
 
-    def generate(self, prompt: str, config: ModelConfig) -> tuple[str, float]:
+    async def prompt(self, prompt: str, config: ModelConfig) -> tuple[str, float]:
         payload = {
             "model": config.model,
             "prompt": prompt,
@@ -49,7 +52,7 @@ class OllamaClient:
             "stream": False,
         }
         start = perf_counter()
-        response = self._client.post("/api/generate", json=payload)
+        response = await self._client.post("/api/generate", json=payload)
         latency_ms = (perf_counter() - start) * 1000
         response.raise_for_status()
         data = response.json()

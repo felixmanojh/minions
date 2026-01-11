@@ -6,9 +6,18 @@ Quick diagnostic tool to check if everything is configured correctly.
 Run from anywhere: python ~/.local/share/minions/scripts/verify_setup.py
 """
 
+import os
 import sys
 import subprocess
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from llm_gc.ollama import get_ollama_base_url
+
+OLLAMA_BASE_URL = get_ollama_base_url()
 
 
 class Colors:
@@ -50,7 +59,7 @@ def check_ollama_running() -> bool:
     try:
         import httpx
 
-        resp = httpx.get("http://127.0.0.1:11434/api/tags", timeout=5)
+        resp = httpx.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
         return resp.status_code == 200
     except Exception:
         return False
@@ -207,5 +216,13 @@ def main():
     return 0 if all_ok else 1
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from llm_gc.ollama import get_ollama_base_url
+
+OLLAMA_BASE_URL = get_ollama_base_url()
+...
 if __name__ == "__main__":
     sys.exit(main())

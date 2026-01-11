@@ -59,10 +59,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+import asyncio
+...
+async def main() -> None:
     args = parse_args()
     read_requests = parse_read_requests(args.read)
-    result = run_chat(
+    result = await run_chat(
         task=args.task,
         rounds=args.rounds,
         preset=args.preset,
@@ -98,4 +100,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    asyncio.run(main())

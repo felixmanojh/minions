@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
+from dataclasses import dataclass
+
 from llm_gc.orchestrator.base import ChatTurn
 from llm_gc.orchestrator.m1_chat import (
     AgentSpec,
@@ -41,6 +43,28 @@ PATCH_AGENTS = [
 ]
 
 
+NEGATIVE_REVIEW_KEYWORDS = [
+    "bug",
+    "error",
+    "fails",
+    "failing",
+    "issue",
+    "missing",
+    "breaks",
+    "wrong",
+    "not ready",
+    "reject",
+]
+
+POSITIVE_REVIEW_KEYWORDS = ["lgtm", "looks good", "ship it", "approved", "good to go"]
+
+
+@dataclass
+class ReviewVerdict:
+    approved: bool
+    reason: str
+
+
 class PatchOrchestrator(ChatOrchestrator):
     """Extends ChatOrchestrator to capture final file contents and produce a diff."""
 
@@ -69,16 +93,34 @@ class PatchOrchestrator(ChatOrchestrator):
         self.target_files = [Path(f) for f in (target_files or [])]
         self.require_target_selection = not self.target_files
 
-    def run(self) -> dict:
-        result = super().run()
+    async def run(self) -> dict:
+        result = await super().run()
         turns: list[ChatTurn] = result.get("turns", [])
+        reviewer_turn = self._latest_reviewer_turn(turns)
+        verdict = self._analyze_review(reviewer_turn)
+
+        metadata = result.get("metadata", {})
+        metadata["review_verdict"] = {
+            "approved": verdict.approved,
+            "reason": verdict.reason,
+        }
+
+        if not verdict.approved:
+            metadata["status"] = "rejected_by_reviewer"
+            return {
+                **result,
+                "patch_path": None,
+                "changes": [],
+                "diffs": [],
+                "metadata": metadata,
+            }
+
         implementer_turn = self._latest_implementer_turn(turns)
         file_changes = parse_file_blocks(implementer_turn.content if implementer_turn else "")
         file_diffs = self._build_diffs(file_changes)
         patch_text = generate_multi_diff(file_diffs)
         patch_path = self._write_patch_file(patch_text)
 
-        metadata = result.get("metadata", {})
         metadata["patched_files"] = [str(change.path) for change in file_changes]
         metadata["patch_path"] = str(patch_path)
 
@@ -123,6 +165,12 @@ class PatchOrchestrator(ChatOrchestrator):
                 return turn
         return None
 
+    def _latest_reviewer_turn(self, turns: list[ChatTurn]) -> ChatTurn | None:
+        for turn in reversed(turns):
+            if turn.role == "Reviewer":
+                return turn
+        return None
+
     def _build_diffs(self, changes: Sequence[FileChange]) -> list[FileDiff]:
         diffs: list[FileDiff] = []
         for change in changes:
@@ -144,8 +192,19 @@ class PatchOrchestrator(ChatOrchestrator):
         patch_path.write_text((patch_text or "").strip() + "\n")
         return patch_path
 
+    def _analyze_review(self, reviewer_turn: ChatTurn | None) -> ReviewVerdict:
+        if not reviewer_turn:
+            return ReviewVerdict(approved=False, reason="No reviewer response")
+        text = reviewer_turn.content.lower()
+        if any(keyword in text for keyword in NEGATIVE_REVIEW_KEYWORDS):
+            return ReviewVerdict(approved=False, reason=reviewer_turn.content.strip())
+        if any(keyword in text for keyword in POSITIVE_REVIEW_KEYWORDS):
+            return ReviewVerdict(approved=True, reason=reviewer_turn.content.strip())
+        # Default to rejection if reviewer didn't explicitly approve
+        return ReviewVerdict(approved=False, reason="Reviewer did not approve (missing LGTM)")
 
-def run_patch(
+
+async def run_patch(
     *,
     task: str,
     rounds: int = 4,
@@ -166,7 +225,7 @@ def run_patch(
         read_requests=read_requests,
         target_files=target_files,
     )
-    return orchestrator.run()
+    return await orchestrator.run()
 
 
 __all__ = ["PATCH_AGENTS", "PatchOrchestrator", "run_patch"]

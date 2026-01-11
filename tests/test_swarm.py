@@ -1,13 +1,14 @@
 """Tests for swarm.py - parallel minion execution."""
 
-from unittest.mock import MagicMock, patch
+import asyncio
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from llm_gc.swarm import (
     MinionTask,
     Swarm,
     run_minion_task,
     simplify_prompt,
-    swarm_dispatch,
 )
 
 # ─────────────────────────────────────────────────────────────
@@ -164,22 +165,23 @@ class TestSwarmAddTasks:
 # ─────────────────────────────────────────────────────────────
 
 
+@pytest.mark.anyio
 class TestRunMinionTask:
     """Test individual task execution."""
 
-    def test_chat_task_success(self):
+    async def test_chat_task_success(self):
         """Test successful chat task execution."""
         task = MinionTask(description="Test task")
 
-        with patch("llm_gc.swarm.run_chat") as mock_chat:
+        with patch("llm_gc.swarm.run_chat", new_callable=AsyncMock) as mock_chat:
             mock_chat.return_value = {"summary": "Test result"}
-            result = run_minion_task(task)
+            result = await run_minion_task(task)
 
         assert result.status == "completed"
         assert result.result == "Test result"
         assert result.error is None
 
-    def test_patch_task_success(self):
+    async def test_patch_task_success(self):
         """Test successful patch task execution."""
         task = MinionTask(
             description="Add docstring",
@@ -187,14 +189,14 @@ class TestRunMinionTask:
             target="test.py",
         )
 
-        with patch("llm_gc.swarm.run_patch") as mock_patch:
+        with patch("llm_gc.swarm.run_patch", new_callable=AsyncMock) as mock_patch:
             mock_patch.return_value = {"patch_path": "/tmp/test.patch"}
-            result = run_minion_task(task)
+            result = await run_minion_task(task)
 
         assert result.status == "completed"
         assert result.result == "/tmp/test.patch"
 
-    def test_patch_task_empty(self):
+    async def test_patch_task_empty(self):
         """Test patch task with empty result."""
         task = MinionTask(
             description="Add docstring",
@@ -202,61 +204,23 @@ class TestRunMinionTask:
             target="test.py",
         )
 
-        with patch("llm_gc.swarm.run_patch") as mock_patch:
+        with patch("llm_gc.swarm.run_patch", new_callable=AsyncMock) as mock_patch:
             mock_patch.return_value = {}
-            result = run_minion_task(task)
+            result = await run_minion_task(task)
 
         assert result.status == "empty"
         assert result.result == ""
 
-    def test_task_failure(self):
+    async def test_task_failure(self):
         """Test task that throws exception."""
         task = MinionTask(description="Failing task")
 
-        with patch("llm_gc.swarm.run_chat") as mock_chat:
+        with patch("llm_gc.swarm.run_chat", new_callable=AsyncMock) as mock_chat:
             mock_chat.side_effect = Exception("Connection refused")
-            result = run_minion_task(task)
+            result = await run_minion_task(task)
 
         assert result.status == "failed"
         assert "Connection refused" in result.error
-
-
-# ─────────────────────────────────────────────────────────────
-# Swarm Dispatch Tests
-# ─────────────────────────────────────────────────────────────
-
-
-class TestSwarmDispatch:
-    """Test the convenience swarm_dispatch function."""
-
-    def test_dispatch_creates_correct_tasks(self):
-        """Test that dispatch creates correct task types."""
-        tasks = [
-            {"description": "Review code"},
-            {"description": "Fix bug", "kind": "patch", "target": "bug.py"},
-        ]
-
-        with patch.object(Swarm, "run") as mock_run:
-            mock_run.return_value = {"completed": [], "failed": [], "stats": {}}
-            swarm_dispatch(tasks, workers=2)
-
-        # Verify run was called
-        mock_run.assert_called_once()
-
-    def test_dispatch_with_context_files(self):
-        """Test dispatch with context files."""
-        tasks = [
-            {
-                "description": "Review auth",
-                "context_files": ["auth.py", "users.py"],
-            },
-        ]
-
-        with patch.object(Swarm, "run") as mock_run:
-            mock_run.return_value = {"completed": [], "failed": [], "stats": {}}
-            swarm_dispatch(tasks)
-
-        mock_run.assert_called_once()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -264,83 +228,60 @@ class TestSwarmDispatch:
 # ─────────────────────────────────────────────────────────────
 
 
+@pytest.mark.anyio
 class TestSwarmRun:
     """Test Swarm.run() with mocked workers."""
 
-    def test_run_logs_progress(self):
+    async def test_run_logs_progress(self):
         """Test that run() calls progress callback."""
         swarm = Swarm(workers=1)
         swarm.add_chat("Test task")
 
         progress_messages = []
 
-        # Mock the entire ProcessPoolExecutor context
-        with patch("llm_gc.swarm.ProcessPoolExecutor") as mock_executor_class:
-            # Create mock future
-            mock_future = MagicMock()
-            mock_future.result.return_value = {
-                "description": "Test task",
-                "kind": "chat",
-                "target": None,
-                "context_files": [],
-                "repo_root": ".",
-                "rounds": 2,
-                "retries": 0,
-                "max_retries": 2,
-                "status": "completed",
-                "result": "Done",
-                "error": None,
-            }
+        async def mock_gather(*args, **kwargs):
+            return [
+                MinionTask(
+                    description="Test task",
+                    status="completed",
+                    result="Done",
+                )
+            ]
 
-            # Make as_completed return our mock future
-            mock_executor = MagicMock()
-            mock_executor.__enter__ = MagicMock(return_value=mock_executor)
-            mock_executor.__exit__ = MagicMock(return_value=False)
-            mock_executor.submit.return_value = mock_future
-            mock_executor_class.return_value = mock_executor
-
-            with patch("llm_gc.swarm.as_completed", return_value=[mock_future]):
-                with patch("llm_gc.swarm.add_bananas", return_value=1):
-                    with patch("llm_gc.swarm.celebrate", return_value=""):
-                        with patch("llm_gc.swarm.get_bananas", return_value=1):
-                            result = swarm.run(on_progress=progress_messages.append)
+        with patch("asyncio.gather", new=mock_gather):
+            with patch("llm_gc.swarm.add_bananas", return_value=1):
+                with patch("llm_gc.swarm.celebrate", return_value=""):
+                    with patch("llm_gc.swarm.get_bananas", return_value=1):
+                        result = await swarm.run(on_progress=progress_messages.append)
 
         assert result["stats"]["completed"] == 1
         assert any("Swarm starting" in msg for msg in progress_messages)
 
-    def test_stats_returned(self):
+    async def test_stats_returned(self):
         """Test that run returns proper stats."""
         swarm = Swarm(workers=1)
         swarm.add_chat("Task 1")
         swarm.add_chat("Task 2")
 
-        with patch("llm_gc.swarm.ProcessPoolExecutor") as mock_executor_class:
-            mock_future = MagicMock()
-            mock_future.result.return_value = {
-                "description": "Task",
-                "kind": "chat",
-                "target": None,
-                "context_files": [],
-                "repo_root": ".",
-                "rounds": 2,
-                "retries": 0,
-                "max_retries": 2,
-                "status": "completed",
-                "result": "Done",
-                "error": None,
-            }
+        async def mock_gather(*args, **kwargs):
+            return [
+                MinionTask(
+                    description="Task 1",
+                    status="completed",
+                    result="Done",
+                ),
+                MinionTask(
+                    description="Task 2",
+                    status="completed",
+                    result="Done",
+                ),
+            ]
 
-            mock_executor = MagicMock()
-            mock_executor.__enter__ = MagicMock(return_value=mock_executor)
-            mock_executor.__exit__ = MagicMock(return_value=False)
-            mock_executor.submit.return_value = mock_future
-            mock_executor_class.return_value = mock_executor
-
-            with patch("llm_gc.swarm.as_completed", return_value=[mock_future, mock_future]):
-                with patch("llm_gc.swarm.add_bananas", return_value=2):
-                    with patch("llm_gc.swarm.celebrate", return_value=""):
-                        with patch("llm_gc.swarm.get_bananas", return_value=2):
-                            result = swarm.run()
+        with patch("asyncio.gather", new=mock_gather):
+            with patch("llm_gc.swarm.add_bananas", return_value=2):
+                with patch("llm_gc.swarm.celebrate", return_value=""):
+                    with patch("llm_gc.swarm.get_bananas", return_value=2):
+                        result = await swarm.run()
 
         assert "completed" in result
         assert "failed" in result

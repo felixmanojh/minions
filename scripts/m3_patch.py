@@ -63,10 +63,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+import asyncio
+...
+async def main() -> None:
     args = parse_args()
     read_requests = parse_read_requests(args.read)
-    result = run_patch(
+    result = await run_patch(
         task=args.task,
         rounds=args.rounds,
         preset=args.preset,
@@ -76,6 +78,7 @@ def main() -> None:
         read_requests=read_requests,
         target_files=args.target,
     )
+    patch_path = result.get("patch_path")
     if args.json:
         payload = {
             "task": args.task,
@@ -87,7 +90,7 @@ def main() -> None:
             "summary": result.get("summary", ""),
             "transcript_path": str(result.get("transcript_path")),
             "summary_path": str(result.get("summary_path")),
-            "patch_path": str(result.get("patch_path")),
+            "patch_path": str(patch_path) if patch_path else None,
             "metadata": result.get("metadata", {}),
         }
         print(json.dumps(payload, indent=2))
@@ -98,9 +101,14 @@ def main() -> None:
     print(f"\nTranscript saved to: {result['transcript_path']}")
     if result.get("summary_path"):
         print(f"Repo summary saved to: {result['summary_path']}")
-    if result.get("patch_path"):
-        print(f"Unified diff saved to: {result['patch_path']}")
+    if patch_path:
+        print(f"Unified diff saved to: {patch_path}")
+    else:
+        verdict = result.get("metadata", {}).get("review_verdict", {})
+        reason = verdict.get("reason", "Reviewer rejected the patch")
+        print("Reviewer rejected the patch. Fix issues and rerun.")
+        print(f"Reason: {reason}")
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    asyncio.run(main())

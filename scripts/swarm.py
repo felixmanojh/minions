@@ -17,7 +17,7 @@ ensure_venv()
 import argparse
 import json
 
-from llm_gc.swarm import Swarm, swarm_dispatch
+from llm_gc.swarm import Swarm
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,7 +61,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+async def main() -> None:
     args = parse_args()
 
     swarm = Swarm(
@@ -109,7 +109,7 @@ def main() -> None:
         )
 
     # Run the swarm
-    results = swarm.run()
+    results = await swarm.run()
 
     if args.json:
         print(json.dumps(results, indent=2))
@@ -141,4 +141,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

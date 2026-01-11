@@ -8,6 +8,8 @@ import sys
 import time
 from pathlib import Path
 
+from llm_gc.ollama import get_ollama_base_url
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VENV_DIR = REPO_ROOT / ".venv"
 REQUIREMENTS = [
@@ -21,7 +23,7 @@ REQUIREMENTS = [
     "networkx",
 ]
 
-OLLAMA_URL = "http://127.0.0.1:11434"
+OLLAMA_URL = get_ollama_base_url()
 OLLAMA_HEALTH_RETRIES = 3
 OLLAMA_HEALTH_BACKOFF = 2.0  # seconds
 

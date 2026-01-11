@@ -46,19 +46,17 @@ Use Claude for the hard stuff. Send minions for the rest.
 
 ### Quick Start (macOS/Linux)
 
+The installer takes care of everything: installs/starts Ollama, pulls the **medium** preset models (7B each), clones this repo, creates the virtualenv, installs deps, and links the skills.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/felixmanojh/minions/main/install.sh | bash
-```
-
-Then install the plugin:
-```
 /plugin marketplace add felixmanojh/minions
 ```
 
 ### Manual Setup
 
 1. Install Ollama: `brew install ollama` or [ollama.ai](https://ollama.ai)
-2. Pull models:
+2. Pull models (default **medium** preset):
    ```bash
    ollama pull qwen2.5-coder:7b
    ollama pull deepseek-coder:6.7b
@@ -96,9 +94,10 @@ Or invoke directly:
 ```
 /minion-huddle   # Multi-agent discussion
 /minion-fix      # Generate a patch
-/minion-swarm    # Parallel batch tasks
 /minion-queue    # Queue tasks for later
 ```
+
+> Need parallel batch tasks? Run `python scripts/swarm.py ...` from the terminal—the swarm helper is a CLI utility rather than a Claude skill in this release.
 
 ## Skills
 
@@ -108,8 +107,8 @@ Multi-agent discussion. Minions debate a topic and report findings.
 ### `/minion-fix`
 Patch generation. Minions write code, critique it, and produce a unified diff.
 
-### `/minion-swarm` 🍌
-Parallel execution. Dispatch many minions simultaneously with auto-retry.
+### `/minion-swarm` (CLI) 🍌
+Parallel execution helper. Dispatch many minions simultaneously with auto-retry from the terminal.
 
 ```bash
 python scripts/swarm.py --workers 5 patch "Add docstrings" src/*.py
@@ -156,6 +155,14 @@ patcher:
   temperature: 0.1
   max_tokens: 1024
 ```
+
+Need to point at a remote Ollama host or custom port? Set `OLLAMA_BASE_URL` before launching any commands (scripts, skills, or Claude tools). Example:
+
+```bash
+export OLLAMA_BASE_URL="http://ollama.my-lab:11434"
+```
+
+All Minions components (model router, orchestrators, bootstrap, setup checks) honor this variable.
 
 ## Banana Counter 🍌
 
