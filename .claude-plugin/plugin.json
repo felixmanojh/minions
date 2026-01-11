@@ -2,7 +2,10 @@
   "name": "minions",
   "version": "0.1.0",
   "description": "Local LLM minions for Claude Code — summon a squad of small models to discuss, review, and patch your code privately and token-free.",
-  "author": "felix",
+  "author": {
+    "name": "Felix Manoj",
+    "email": "felixmanojh@users.noreply.github.com"
+  },
   "license": "MIT",
   "repository": "https://github.com/felixmanojh/minions",
   "homepage": "https://github.com/felixmanojh/minions#readme",
@@ -14,36 +17,10 @@
     "patch-generation",
     "offline"
   ],
-  "engines": {
-    "claude-code": ">=1.0.0"
-  },
   "skills": [
-    "skills/minion-huddle",
-    "skills/minion-fix",
-    "skills/minion-queue",
-    "skills/minion-setup"
-  ],
-  "requirements": {
-    "external": [
-      {
-        "name": "ollama",
-        "description": "Local LLM inference server",
-        "url": "https://ollama.ai",
-        "required": true
-      }
-    ],
-    "models": {
-      "note": "Models are configurable via llm_gc/config/models.yaml",
-      "presets": {
-        "nano": "~1GB - qwen2.5-coder:0.5b",
-        "small": "~2GB - qwen2.5-coder:1.5b + deepseek-coder:1.3b (default)",
-        "medium": "~8GB - qwen2.5-coder:7b + deepseek-coder:6.7b",
-        "large": "~25GB - qwen2.5-coder:14b + deepseek-coder:33b"
-      },
-      "custom": "Users can define any Ollama-compatible model in models.yaml"
-    }
-  },
-  "postInstall": {
-    "message": "Run /minion-setup to configure Ollama and download required models."
-  }
+    "./skills/minion-huddle",
+    "./skills/minion-fix",
+    "./skills/minion-queue",
+    "./skills/minion-setup"
+  ]
 }
