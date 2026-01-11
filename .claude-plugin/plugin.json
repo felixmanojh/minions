@@ -22,6 +22,7 @@
     "./skills/minion-huddle",
     "./skills/minion-fix",
     "./skills/minion-queue",
-    "./skills/minion-setup"
+    "./skills/minion-setup",
+    "./skills/minion-swarm"
   ]
 }
