@@ -1,6 +1,6 @@
-# Minions
+# Minions 🍌
 
-**Local LLM minions for Claude Code** — summon a squad of small local models to discuss, review, and patch your code.
+**Local LLM minions for Claude Code** — summon a squad of specialized models to review, patch, and refactor your code.
 
 ```
         Claude Code (Cloud)
@@ -13,238 +13,192 @@
 
 ## What is this?
 
-Minions is a Claude Code plugin that lets you offload coding tasks to local LLMs running via [Ollama](https://ollama.ai). Instead of burning cloud tokens on routine discussions and small fixes, summon your minion squad:
+Minions is a Claude Code plugin that offloads coding tasks to local LLMs via [Ollama](https://ollama.ai). Instead of burning cloud tokens on routine work, summon your minion squad:
 
-- **Implementer** — proposes solutions and writes code
-- **Reviewer** — critiques, finds bugs, asks hard questions
+| Role | Model | Specialty |
+|------|-------|-----------|
+| **Implementer** | Qwen2.5-Coder | Code generation, 92+ languages |
+| **Reviewer** | DeepSeek-Coder | Bug detection, 300+ languages |
+| **Patcher** | StarCoder2 | FIM (fill-in-middle), surgical edits |
 
-They debate until they reach a conclusion, then report back.
+They debate, refine, and report back.
 
 ## Why?
 
 | Cloud (Claude) | Local (Minions) |
 |----------------|-----------------|
 | Expensive tokens | Free (your hardware) |
-| Best for strategy & synthesis | Best for grunt work |
-| Knows the world | Knows your repo |
-| Smart but costly | Cheap but focused |
+| Best for strategy | Best for grunt work |
+| Smart but costly | Specialized and fast |
 
 Use Claude for the hard stuff. Send minions for the rest.
 
 ## Installation
 
-### Step 1: Install the Plugin
-
-**Claude Code** (recommended):
-```
-/plugin marketplace add felixmanojh/minions
-```
-
-**OpenSkills** (universal - works with Cursor, Windsurf, Cline, etc.):
-```bash
-npm i -g openskills
-openskills install felixmanojh/minions
-openskills sync
-```
-
-**Manual**:
-```
-/plugin add https://github.com/felixmanojh/minions
-```
-
-### Step 2: Setup Ollama + Models
-
-After installing the plugin, run the setup skill:
-
-```
-/minion-setup
-```
-
-Or use the standalone installer (macOS/Linux):
+### Quick Start (macOS/Linux)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/felixmanojh/minions/main/install.sh | bash
 ```
 
+Then install the plugin:
+```
+/plugin marketplace add felixmanojh/minions
+```
+
+### Manual Setup
+
+1. Install Ollama: `brew install ollama` or [ollama.ai](https://ollama.ai)
+2. Pull models:
+   ```bash
+   ollama pull qwen2.5-coder:7b
+   ollama pull deepseek-coder:6.7b
+   ollama pull starcoder2:7b
+   ```
+3. Install plugin: `/plugin marketplace add felixmanojh/minions`
+
 <details>
-<summary>Windows users: manual Ollama setup</summary>
+<summary>Windows users</summary>
 
 1. Download Ollama from https://ollama.ai/download/windows
-2. Run the installer
-3. Open PowerShell and run:
+2. Open PowerShell:
    ```powershell
    ollama serve
-   ollama pull qwen2.5-coder:1.5b
-   ollama pull deepseek-coder:1.3b
+   ollama pull qwen2.5-coder:7b
+   ollama pull deepseek-coder:6.7b
+   ollama pull starcoder2:7b
    ```
+3. Install plugin in Claude Code
 
 </details>
 
-### Verify Installation
-
-```bash
-python scripts/verify_setup.py
-```
-
-Or just ask Claude: "Check my minions setup"
-
 ## Usage
 
-Once installed, Claude Code automatically discovers the skills. Just ask:
+Once installed, Claude Code discovers the skills automatically. Just ask:
 
 > "Summon minions to review my auth implementation"
 
 > "Have minions fix the pagination bug in src/paginator.py"
 
-> "Queue up doc tasks for the utils module"
+> "Swarm minions to add docstrings to all files in src/"
 
 Or invoke directly:
 
 ```
-/minion-huddle
-/minion-fix
-/minion-queue
-```
-
-### Example: Minion Huddle
-
-```
-$ python scripts/m1_chat.py "Review error handling in this function" \
-    --read src/auth.py --rounds 2 --json
-```
-
-```json
-{
-  "task": "Review error handling in this function",
-  "rounds": 2,
-  "summary": "The function catches generic exceptions which masks the root cause.
-              Recommend catching specific exceptions (ValueError, KeyError) and
-              adding proper logging before re-raising.",
-  "transcript_path": "sessions/20250111-143022-m1.json",
-  "summary_path": "sessions/20250111-143022-m1-summary.txt"
-}
-```
-
-### Example: Minion Fix
-
-```
-$ python scripts/m3_patch.py "Add type hints to the process function" \
-    --target src/worker.py --rounds 3 --json
-```
-
-```json
-{
-  "task": "Add type hints to the process function",
-  "patch_path": "sessions/20250111-143500-m3.patch",
-  "metadata": {
-    "patched_files": ["src/worker.py"]
-  }
-}
-```
-
-Apply the patch:
-```bash
-patch -p1 < sessions/20250111-143500-m3.patch
+/minion-huddle   # Multi-agent discussion
+/minion-fix      # Generate a patch
+/minion-swarm    # Parallel batch tasks
+/minion-queue    # Queue tasks for later
 ```
 
 ## Skills
 
 ### `/minion-huddle`
-
 Multi-agent discussion. Minions debate a topic and report findings.
 
-```bash
-python scripts/m1_chat.py "Review the error handling strategy" \
-  --repo-root . \
-  --read src/errors.py \
-  --rounds 3 \
-  --json
-```
-
 ### `/minion-fix`
+Patch generation. Minions write code, critique it, and produce a unified diff.
 
-Generate a patch. Minions write code, critique it, and produce a unified diff.
+### `/minion-swarm` 🍌
+Parallel execution. Dispatch many minions simultaneously with auto-retry.
 
 ```bash
-python scripts/m3_patch.py "Fix the race condition in worker.py" \
-  --repo-root . \
-  --target src/worker.py \
-  --rounds 4 \
-  --json
+python scripts/swarm.py --workers 5 patch "Add docstrings" src/*.py
 ```
 
 ### `/minion-queue`
+Batch tasks. Queue multiple jobs and process them asynchronously.
 
-Batch tasks. Queue multiple jobs and process them.
+### `/minion-setup`
+Bootstrap and diagnostics. Check/install Ollama, models, and dependencies.
+
+## Presets
+
+| Preset | Download | RAM | Description |
+|--------|----------|-----|-------------|
+| lite | ~5GB | 8GB | Single strong generalist model |
+| **medium** | ~13GB | 16GB | Specialized model per role (recommended) |
+| large | ~35GB | 32GB+ | Best for large repo refactoring |
+
+Set via environment: `MINIONS_PRESET=medium`
+
+## Configuration
+
+Edit `llm_gc/config/models.yaml`:
+
+```yaml
+preset: medium
+
+# Or override specific roles:
+implementer:
+  model: qwen2.5-coder:7b
+  temperature: 0.2
+  max_tokens: 1024
+
+reviewer:
+  model: deepseek-coder:6.7b
+  temperature: 0.1
+  max_tokens: 800
+
+patcher:
+  model: starcoder2:7b
+  temperature: 0.1
+  max_tokens: 1024
+```
+
+## Banana Counter 🍌
+
+Track your minion productivity!
 
 ```bash
-python scripts/task_queue.py enqueue-patch "Add docstrings" --target src/utils.py
-python scripts/task_queue.py run-next
+python scripts/bananas.py
+
+# ========================================
+# 🍌 BANANA STATS 🍌
+# ========================================
+# Total bananas: 127
+# Today: 15
+# Current streak: 3 days
 ```
+
+Each completed task earns bananas. Milestones: 🍌 Newbie → 🍌🍌🍌🍌🍌 Regular → 🍌👑 BANANA KING!
 
 ## Architecture
 
 ```
 minions/
 ├── .claude-plugin/          # Plugin metadata
-│   └── plugin.json          # name, version, skills, requirements
-├── skills/                  # Agent skills (works across platforms)
-│   ├── minion-huddle/       # discussion skill
-│   ├── minion-fix/          # patch generation skill
-│   ├── minion-queue/        # task queue skill
-│   └── minion-setup/        # bootstrap/diagnostic skill
+├── skills/                  # Agent skills
+│   ├── minion-huddle/       # Discussion
+│   ├── minion-fix/          # Patch generation
+│   ├── minion-swarm/        # Parallel execution
+│   ├── minion-queue/        # Task queue
+│   └── minion-setup/        # Bootstrap
 ├── llm_gc/                  # Python package
-│   ├── orchestrator/        # multi-agent chat loops
-│   ├── tools/               # file reader, diff generator, repo map
-│   ├── parsers/             # extract code blocks from LLM output
-│   └── config/              # model configuration
+│   ├── orchestrator/        # Multi-agent loops
+│   ├── config/              # Model configuration
+│   ├── swarm.py             # Parallel execution
+│   └── bananas.py           # 🍌 counter
 ├── scripts/                 # CLI entry points
-├── AGENTS.md                # Universal agent discovery
-└── sessions/                # transcripts, patches, queue state
-```
-
-## Configuration
-
-Edit `llm_gc/config/models.yaml` to change models or add roles:
-
-```yaml
-implementer:
-  model: qwen2.5-coder:1.5b
-  temperature: 0.2
-  max_tokens: 512
-
-reviewer:
-  model: deepseek-coder:1.3b
-  temperature: 0.15
-  max_tokens: 400
-
-# Add more roles as needed
-bughunter:
-  model: codellama:7b-code
-  temperature: 0.3
-  max_tokens: 600
+└── sessions/                # Transcripts and patches
 ```
 
 ## Requirements
 
 - Python 3.10+
 - Ollama running locally
-- RAM based on preset:
-  - nano: 1GB
-  - small: 2GB (default)
-  - medium: 8GB
-  - large: 16GB+
+- 8-16GB RAM (depending on preset)
 - Claude Code (for skill integration)
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| "Ollama: command not found" | Install Ollama: `brew install ollama` or [ollama.ai](https://ollama.ai) |
+| "Ollama not found" | Install: `brew install ollama` |
 | "Connection refused" | Start daemon: `ollama serve` |
-| "Model not found" | Pull model: `ollama pull qwen2.5-coder:1.5b` |
-| Empty or poor responses | Try a larger preset, or add more context with `--read` |
-| Patch doesn't apply | File changed since minions saw it — re-run |
+| "Model not found" | Pull: `ollama pull qwen2.5-coder:7b` |
+| Poor quality output | Use medium preset (7B models) |
+| Patch doesn't apply | File changed — re-run |
 
 ## License
 
@@ -252,9 +206,10 @@ MIT
 
 ## Contributing
 
-PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Acknowledgments
 
-Inspired by [Aider](https://github.com/paul-gauthier/aider) for the repo mapping approach.
-Built on [Ollama](https://ollama.ai) for local model inference.
+- [Aider](https://github.com/paul-gauthier/aider) for repo mapping inspiration
+- [Ollama](https://ollama.ai) for local model inference
+- The Minions movie for... inspiration 🍌
