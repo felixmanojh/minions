@@ -17,6 +17,8 @@ LANGUAGE_ONLY = frozenset({
     "rust", "c", "cpp", "c++", "csharp", "cs", "ruby", "rb", "php", "swift",
     "kotlin", "scala", "bash", "sh", "shell", "zsh", "sql", "html", "css",
     "json", "yaml", "yml", "xml", "markdown", "md", "text", "txt", "diff",
+    # Common LLM mistakes - example paths taken literally
+    "path/to/file.py", "path/to/file", "file.py", "example.py",
 })
 
 

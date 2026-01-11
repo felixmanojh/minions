@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -29,9 +30,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--retries", type=int, default=2, help="Max retries per task (default: 2)"
-    )
-    parser.add_argument(
-        "--rounds", type=int, default=2, help="Rounds per task (default: 2)"
     )
     parser.add_argument(
         "--repo-root", type=Path, default=Path.cwd(), help="Repository root"
@@ -67,7 +65,6 @@ async def main() -> None:
     swarm = Swarm(
         workers=args.workers,
         max_retries=args.retries,
-        rounds=args.rounds,
         repo_root=str(args.repo_root),
     )
 
@@ -87,7 +84,7 @@ async def main() -> None:
                     context_files=t.get("context_files", []),
                 )
             else:
-                swarm.add_chat(
+                swarm.add_task(
                     description=t["description"],
                     context_files=t.get("context_files", []),
                 )
@@ -102,8 +99,8 @@ async def main() -> None:
             )
 
     elif args.command == "chat":
-        # Single chat with context
-        swarm.add_chat(
+        # Single task with context
+        swarm.add_task(
             description=args.description,
             context_files=args.context,
         )
