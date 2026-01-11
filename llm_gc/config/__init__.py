@@ -15,6 +15,7 @@ class ModelConfig(BaseModel):
     model: str
     temperature: float = Field(0.2, ge=0.0, le=2.0)
     max_tokens: int = Field(512, gt=0)
+    num_ctx: int = Field(8192, gt=0)  # context window size
     seed: int | None = None
 
 
@@ -76,4 +77,19 @@ def available_presets(path: str | Path | None = None) -> list[str]:
     return list(data.get("presets", {}).keys())
 
 
-__all__ = ["ModelConfig", "load_models", "available_presets"]
+def get_num_ctx_override() -> int | None:
+    """Get num_ctx from environment variable if set.
+
+    Returns:
+        num_ctx value from MINIONS_NUM_CTX env var, or None if not set.
+    """
+    env_val = os.environ.get("MINIONS_NUM_CTX")
+    if env_val:
+        try:
+            return int(env_val)
+        except ValueError:
+            return None
+    return None
+
+
+__all__ = ["ModelConfig", "load_models", "available_presets", "get_num_ctx_override"]

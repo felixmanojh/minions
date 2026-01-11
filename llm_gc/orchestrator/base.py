@@ -58,6 +58,7 @@ class OllamaClient:
             "options": {
                 "temperature": config.temperature,
                 "num_predict": config.max_tokens,
+                "num_ctx": config.num_ctx,
             },
             "stream": False,
         }

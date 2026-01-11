@@ -1,21 +1,21 @@
 ---
 name: minion-patch
 description: >
-  Generate patches for SMALL files (<50 lines) using local 7b models.
-  Only for mechanical changes: add comment, add simple docstring, rename.
-  ALWAYS review output - minions hallucinate and truncate.
+  Generate patches for files up to ~500 lines using local 7b models (32K context).
+  Only for mechanical changes: add comment, add docstring, rename, type hints.
+  ALWAYS review output - minions can still hallucinate.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
 # Minion Patch
 
-Generate a patch for a small file. Single-shot, no reasoning.
+Generate a patch for a file. Single-shot, no reasoning.
 
-## Hard Limits
+## Limits
 
 | Constraint | Limit |
 |------------|-------|
-| File size | <50 lines (7b models truncate longer files) |
+| File size | <500 lines (32K context window) |
 | Task complexity | Mechanical only (no logic, no reasoning) |
 | Context | MUST pass `--read` or minion hallucinates |
 
@@ -23,13 +23,13 @@ Generate a patch for a small file. Single-shot, no reasoning.
 
 | Task | Works? | Notes |
 |------|--------|-------|
-| Add comment to small file | Yes | Tested |
-| Add docstring to small class | Yes | <30 line files |
-| Rename variable | Maybe | Simple cases |
-| Add type hint | Maybe | If file is tiny |
-| Fix typo | Maybe | If obvious |
+| Add comment | Yes | Tested |
+| Add docstring | Yes | Functions, classes, modules |
+| Add type hints | Yes | Parameters and returns |
+| Rename variable | Yes | Simple cases |
+| Fix typo | Yes | If obvious |
 | Anything requiring thought | No | Will hallucinate |
-| Files >50 lines | No | Output truncates |
+| Files >500 lines | No | May truncate |
 
 ## Usage
 
@@ -71,7 +71,7 @@ patch -p1 < sessions/*.patch
 
 ## When NOT to Use
 
-- File >50 lines
+- File >500 lines
 - Need to understand code logic
 - Security-sensitive changes
 - Anything where "correct" matters

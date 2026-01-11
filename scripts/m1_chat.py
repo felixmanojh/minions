@@ -23,9 +23,8 @@ from llm_gc.skill import parse_read_requests
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run Implementer/Reviewer chat loop")
+    parser = argparse.ArgumentParser(description="Single-shot minion task executor")
     parser.add_argument("task", help="Natural language task description")
-    parser.add_argument("--rounds", type=int, default=3, help="Number of Implementer rounds")
     parser.add_argument(
         "--preset",
         choices=["nano", "small", "medium", "large"],
@@ -56,6 +55,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Emit machine-readable JSON summary (for tooling integration)",
     )
+    parser.add_argument(
+        "--num-ctx",
+        type=int,
+        default=None,
+        help="Context window size (default: 32768, max: 131072 for qwen2.5-coder)",
+    )
     return parser.parse_args()
 
 
@@ -66,17 +71,16 @@ async def main() -> None:
     read_requests = parse_read_requests(args.read)
     result = await run_chat(
         task=args.task,
-        rounds=args.rounds,
         preset=args.preset,
         config_path=args.config,
         session_dir=args.sessions,
         repo_root=args.repo_root,
         read_requests=read_requests,
+        num_ctx=args.num_ctx,
     )
     if args.json:
         payload = {
             "task": args.task,
-            "rounds": args.rounds,
             "preset": args.preset or "default",
             "repo_root": str(args.repo_root),
             "read_requests": [req.describe() for req in read_requests],

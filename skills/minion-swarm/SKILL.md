@@ -1,31 +1,33 @@
 ---
 name: minion-swarm
 description: >
-  Run same mechanical patch on multiple SMALL files (<50 lines each) in parallel.
-  7b models truncate longer files. Only for trivial changes. Review everything.
+  Run same mechanical patch on multiple files (<500 lines each) in parallel.
+  Uses 32K context. Only for mechanical changes. Review everything.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
 # Minion Swarm
 
-Same patch task on multiple small files in parallel.
+Same patch task on multiple files in parallel.
 
-## Hard Limits
+## Limits
 
 | Constraint | Limit |
 |------------|-------|
-| File size | <50 lines each (7b truncates longer) |
+| File size | <500 lines each (32K context) |
 | Task type | Mechanical only |
 | Review | MUST review every patch |
 
 ## What Actually Works
 
-Tested with qwen2.5-coder:7b:
+Tested with qwen2.5-coder:7b (32K context):
 
 | Scenario | Result |
 |----------|--------|
-| Add comment to 22-line file | Success |
-| Add comment to 130-line file | Failed (truncated) |
+| Add comment to files <500 lines | Success |
+| Add docstrings to module | Success |
+| Add type hints | Success |
+| Files >500 lines | May truncate |
 | Task on file without `--read` | Hallucinated |
 
 ## Usage
@@ -77,13 +79,14 @@ patch -p1 < sessions/*.patch
 
 ## When NOT to Use
 
-- Any file >50 lines
+- Any file >500 lines
 - Changes requiring understanding
 - Security-sensitive code
 - When correctness matters more than speed
 
-## Realistic Use Case
+## Realistic Use Cases
 
-"I have 10 tiny config files and want to add a header comment to each"
-
-That's it. That's what swarm is actually good for.
+- Add docstrings to all functions in a module
+- Add type hints across multiple files
+- Add header comments to all files
+- Consistent style fixes across codebase

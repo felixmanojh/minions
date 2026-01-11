@@ -87,39 +87,48 @@ presets:
       model: qwen2.5-coder:7b
       temperature: 0.2
       max_tokens: 1024
+      num_ctx: 32768      # qwen2.5-coder supports 128K, using 32K for memory efficiency
     reviewer:
       model: qwen2.5-coder:7b
       temperature: 0.1
       max_tokens: 800
+      num_ctx: 32768
     patcher:
       model: qwen2.5-coder:7b
       temperature: 0.1
       max_tokens: 1024
+      num_ctx: 32768
 
   medium:
     implementer:
       model: qwen2.5-coder:7b
       temperature: 0.2
       max_tokens: 1024
+      num_ctx: 32768      # qwen2.5-coder supports 128K, using 32K for memory efficiency
     reviewer:
       model: deepseek-coder:1.3b
       temperature: 0.1
       max_tokens: 800
+      num_ctx: 16384      # deepseek-coder:1.3b supports 16K
     patcher:
       model: qwen2.5-coder:7b
       temperature: 0.1
       max_tokens: 1024
+      num_ctx: 32768
 
   large:
     implementer:
       model: qwen2.5-coder:14b
       temperature: 0.2
       max_tokens: 2048
+      num_ctx: 65536      # qwen2.5-coder supports 128K, using 64K for large tasks
     reviewer:
       model: deepseek-coder:33b
       temperature: 0.1
       max_tokens: 1500
+      num_ctx: 32768
     patcher:
       model: starcoder2:15b
       temperature: 0.1
       max_tokens: 2048
+      num_ctx: 32768

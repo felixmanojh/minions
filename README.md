@@ -10,19 +10,20 @@ Local LLM minions for mechanical code tasks — offload trivial patches to your 
 
 | Task | Works? |
 |------|--------|
-| Add comment to small file (<50 lines) | Yes |
-| Add simple docstring | Yes |
-| Rename variable (simple cases) | Maybe |
+| Add comments | Yes |
+| Add docstrings | Yes |
+| Add type hints | Yes |
+| Rename variable (simple cases) | Yes |
+| Files up to ~500 lines | Yes (32K context) |
 | Anything requiring understanding | No |
-| Files >50 lines | No (7b models truncate) |
 
-**Be honest:** 7b models are limited. Minions are good for repetitive mechanical tasks on small files. That's it.
+**Be honest:** 7b models are limited. Minions are good for repetitive mechanical tasks. No reasoning, no logic.
 
-## Hard Limits
+## Limits
 
 | Constraint | Limit |
 |------------|-------|
-| File size | <50 lines (models truncate longer) |
+| File size | <500 lines (32K context window) |
 | Task type | Mechanical only (no logic, no reasoning) |
 | Context | MUST pass `--read` or model hallucinates |
 | Review | ALWAYS review patches before applying |
@@ -98,8 +99,8 @@ patch -p1 < sessions/*.patch
 | Skill | Purpose |
 |-------|---------|
 | `/minion-setup` | Check Ollama, models, dependencies |
-| `/minion-patch` | Generate patch for single small file |
-| `/minion-swarm` | Batch patch multiple small files |
+| `/minion-patch` | Generate patch for single file (<500 lines) |
+| `/minion-swarm` | Batch patch multiple files in parallel |
 | `/minion-apply` | Review and apply patches safely |
 | `/minion-models` | Pull/list Ollama models |
 | `/minion-metrics` | View session stats |
@@ -111,13 +112,36 @@ Edit `llm_gc/config/models.yaml`:
 ```yaml
 preset: medium
 
-patcher:
-  model: qwen2.5-coder:7b
-  temperature: 0.1
-  max_tokens: 1024
+presets:
+  medium:
+    implementer:
+      model: qwen2.5-coder:7b
+      temperature: 0.2
+      max_tokens: 1024
+      num_ctx: 32768  # 32K context for larger files
 ```
 
-Custom Ollama host:
+### Context Window Size
+
+Control context size (tradeoff: larger = more file capacity, but slower):
+
+```bash
+# CLI flag (highest priority)
+python scripts/m1_chat.py "task" --num-ctx 65536
+
+# Environment variable
+export MINIONS_NUM_CTX=65536
+
+# Or edit models.yaml (lowest priority)
+```
+
+| Size | Use Case | Speed |
+|------|----------|-------|
+| 32K (default) | Files <500 lines | Fast |
+| 64K | Files <1000 lines | Medium |
+| 128K (max) | Very large files | Slow |
+
+### Custom Ollama Host
 
 ```bash
 export OLLAMA_BASE_URL="http://ollama.my-lab:11434"
@@ -125,7 +149,7 @@ export OLLAMA_BASE_URL="http://ollama.my-lab:11434"
 
 ## When NOT to Use Minions
 
-- Files >50 lines
+- Files >500 lines
 - Changes requiring understanding of code logic
 - Security-sensitive code
 - When correctness matters more than speed
@@ -137,7 +161,7 @@ export OLLAMA_BASE_URL="http://ollama.my-lab:11434"
 |---------|----------|
 | Empty patch | File too big or already has change |
 | Wrong file contents | Missing `--read` flag |
-| Truncated output | File >50 lines |
+| Truncated output | File >500 lines, increase `num_ctx` |
 | Patch doesn't apply | File changed - re-run |
 
 ## License

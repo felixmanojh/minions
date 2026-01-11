@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from llm_gc.config import load_models
+from llm_gc.config import load_models, get_num_ctx_override
 from llm_gc.orchestrator.base import ChatTurn, OllamaClient, persist_transcript, render_turn
 from llm_gc.tools import (
     FileReader,
@@ -50,12 +50,15 @@ class MinionExecutor:
         repo_root: str | Path | None = None,
         read_requests: Sequence[FileReadRequest] | None = None,
         summary_chars: int = 4000,
+        num_ctx: int | None = None,
     ) -> None:
         self.task = task
         self.preset = preset
         self.session_dir = Path(session_dir)
         self.models = load_models(config_path, preset=preset)
         self.model_override = model
+        # Priority: CLI arg > ENV var > config default
+        self.num_ctx_override = num_ctx or get_num_ctx_override()
         self.client = OllamaClient()
         self.repo_root = Path(repo_root or Path.cwd()).resolve()
         self.file_reader = FileReader(self.repo_root)
@@ -80,6 +83,15 @@ class MinionExecutor:
                 model=self.model_override,
                 temperature=config.temperature,
                 max_tokens=config.max_tokens,
+                num_ctx=self.num_ctx_override or config.num_ctx,
+            )
+        # Override just num_ctx if specified without model override
+        elif self.num_ctx_override:
+            config = config.__class__(
+                model=config.model,
+                temperature=config.temperature,
+                max_tokens=config.max_tokens,
+                num_ctx=self.num_ctx_override,
             )
 
         # Build prompt and execute
@@ -179,6 +191,7 @@ async def run_task(
     session_dir: str | Path = "sessions",
     repo_root: str | Path | None = None,
     read_requests: Sequence[FileReadRequest] | None = None,
+    num_ctx: int | None = None,
 ) -> dict:
     """Execute a single minion task.
 
@@ -190,6 +203,7 @@ async def run_task(
         session_dir: Where to save transcripts
         repo_root: Repository root directory
         read_requests: Files to include as context
+        num_ctx: Context window size override (default: from config)
 
     Returns:
         dict with summary, model, latency_ms, paths
@@ -202,6 +216,7 @@ async def run_task(
         session_dir=session_dir,
         repo_root=repo_root,
         read_requests=read_requests,
+        num_ctx=num_ctx,
     )
     return await executor.run()
 
@@ -216,6 +231,7 @@ async def run_chat(
     session_dir: str | Path = "sessions",
     repo_root: str | Path | None = None,
     read_requests: Sequence[FileReadRequest] | None = None,
+    num_ctx: int | None = None,
 ) -> dict:
     """Backwards-compatible wrapper for run_task."""
     return await run_task(
@@ -225,6 +241,7 @@ async def run_chat(
         session_dir=session_dir,
         repo_root=repo_root,
         read_requests=read_requests,
+        num_ctx=num_ctx,
     )
 
 
