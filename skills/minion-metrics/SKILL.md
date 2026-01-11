@@ -31,10 +31,10 @@ source .venv/bin/activate && python scripts/metrics.py
 This displays:
 - Total tasks and success rate
 - Today's activity
-- Performance by role (implementer, reviewer, judge, etc.)
+- Performance by role (implementer, patcher, etc.)
 - Latency stats and fastest model
 - Retry rate
-- Quality metrics (judge scores, patch success, test pass rate)
+- Quality metrics (patch success rate)
 
 ### Filter by criteria
 
@@ -86,9 +86,7 @@ The dashboard shows colored dots for each metric:
 | Success Rate | >90% | 70-90% | <70% |
 | Latency | <2s | 2-5s | >5s |
 | Retry Rate | <10% | 10-25% | >25% |
-| Judge Score | >0.8 | 0.6-0.8 | <0.6 |
 | Patch Success | >85% | 60-85% | <60% |
-| Test Pass Rate | >90% | 70-90% | <70% |
 
 ## Data Storage
 
@@ -96,7 +94,7 @@ Metrics are stored at `~/.minions/metrics.json` and collected automatically when
 
 ## Troubleshooting
 
-**No metrics recorded yet**: Run some minion tasks first (huddle, fix, swarm).
+**No metrics recorded yet**: Run some minion tasks first (patch, swarm, chat).
 
 **Metrics file missing**: Check `~/.minions/` directory exists.
 

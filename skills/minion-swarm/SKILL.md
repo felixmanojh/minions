@@ -2,8 +2,8 @@
 name: minion-swarm
 description: >
   Dispatch a swarm of minions to work on multiple tasks in parallel. Good for: batch operations
-  like adding docstrings to many files, fixing typos across a codebase, bulk renaming. Features
-  auto-retry with simplified prompts when minions fail. Use when you have many similar grunt tasks.
+  like adding docstrings to many files, fixing typos across a codebase, bulk renaming, code checks.
+  Features auto-retry with simplified prompts when minions fail. Use when you have many similar tasks.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
@@ -15,6 +15,7 @@ Dispatch many minions in parallel with auto-retry. Like Gru commanding his minio
 
 - Multiple similar tasks (docstrings on 10 files)
 - Bulk operations (fix typos across codebase)
+- Code verification sweeps (find issues, check patterns)
 - Time-sensitive grunt work
 - Tasks that can fail and retry
 
@@ -30,11 +31,20 @@ Dispatch many minions in parallel with auto-retry. Like Gru commanding his minio
 
 ## Usage
 
-### Same task on multiple files
+### Patch: Same task on multiple files
 
 ```bash
-python scripts/swarm.py patch "Add docstrings to all functions" \
+source .venv/bin/activate && python scripts/swarm.py patch "Add docstrings to all functions" \
   src/utils.py src/parser.py src/config.py \
+  --workers 5 \
+  --json
+```
+
+### Analyze: Check files for issues
+
+```bash
+source .venv/bin/activate && python scripts/swarm.py analyze "Check for missing error handling" \
+  src/api/*.py \
   --workers 5 \
   --json
 ```
@@ -47,35 +57,67 @@ Create a tasks file:
 [
   {"kind": "patch", "description": "Add type hints", "target": "src/utils.py"},
   {"kind": "patch", "description": "Add type hints", "target": "src/parser.py"},
-  {"kind": "chat", "description": "Review error handling", "context_files": ["src/errors.py"]}
+  {"kind": "task", "description": "Review error handling", "context_files": ["src/errors.py"]}
 ]
 ```
 
 Run the swarm:
 
 ```bash
-python scripts/swarm.py batch tasks.json --workers 5 --json
+source .venv/bin/activate && python scripts/swarm.py batch tasks.json --workers 5 --json
 ```
 
 ### From Claude (programmatic)
 
 ```python
-from llm_gc.swarm import swarm_dispatch
+from llm_gc.swarm import Swarm
+import asyncio
 
-results = swarm_dispatch(
-    tasks=[
-        {"kind": "patch", "description": "Add docstrings", "target": "src/a.py"},
-        {"kind": "patch", "description": "Add docstrings", "target": "src/b.py"},
-        {"kind": "patch", "description": "Add docstrings", "target": "src/c.py"},
-    ],
-    workers=5,
-    max_retries=2,
-    repo_root=".",
-)
+swarm = Swarm(workers=5, max_retries=2)
 
-print(f"Completed: {results['stats']['completed']}")
-print(f"Failed: {results['stats']['failed']}")
+# Add patch tasks
+swarm.add_patch("Add docstrings", target="src/a.py")
+swarm.add_patch("Add docstrings", target="src/b.py")
+
+# Add analyze tasks
+swarm.add_task("Check for security issues", context_files=["src/auth.py"])
+
+result = asyncio.run(swarm.run())
+print(f"Completed: {result['stats']['completed']}")
 ```
+
+### Process files with pattern
+
+```python
+from llm_gc.swarm import process_files
+import asyncio
+
+# Analyze all Python files
+result = asyncio.run(process_files(
+    pattern='src/**/*.py',
+    task='Check {file} for security issues',
+    action='analyze'
+))
+
+# Patch all Python files
+result = asyncio.run(process_files(
+    pattern='src/**/*.py',
+    task='Add type hints to {file}',
+    action='patch'
+))
+```
+
+## Check/Analyze Examples
+
+| Check | Example prompt |
+|-------|----------------|
+| Missing docs | "Find functions without docstrings" |
+| Error handling | "Check for unhandled exceptions" |
+| TODO/FIXME | "List all TODO comments" |
+| Naming | "Find variables with unclear names" |
+| Complexity | "Find functions over 50 lines" |
+| Imports | "Check for unused imports" |
+| Types | "Find functions missing type hints" |
 
 ## Auto-retry with Minion-speak
 
@@ -116,8 +158,7 @@ This helps small models focus on the essential task.
 Track your minion productivity across sessions!
 
 ```bash
-# View your banana stats
-python scripts/bananas.py
+source .venv/bin/activate && python scripts/bananas.py
 
 # Output:
 # ========================================
@@ -144,7 +185,6 @@ Banana milestones:
 |------|---------|-------------|
 | `--workers` | 5 | Parallel workers |
 | `--retries` | 2 | Max retries per task |
-| `--rounds` | 2 | Chat rounds per task |
 | `--json` | false | Output JSON |
 
 ## Best practices
@@ -161,7 +201,7 @@ Banana milestones:
 FILES=$(find src/ -name "*.py" | tr '\n' ' ')
 
 # Dispatch swarm
-python scripts/swarm.py patch "Add docstrings to all public functions" $FILES \
+source .venv/bin/activate && python scripts/swarm.py patch "Add docstrings to all public functions" $FILES \
   --workers 5 \
   --retries 2 \
   --json > results.json
@@ -176,3 +216,4 @@ cat sessions/*.patch | less
 - Very large swarms may slow down
 - Each task is independent (no shared state)
 - Review patches carefully before applying
+- Analyze tasks report issues, they don't fix them

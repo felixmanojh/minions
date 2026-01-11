@@ -171,6 +171,12 @@ Or use custom models by uncommenting the custom section in `models.yaml`.
 
 Try your first minion command:
 
+```bash
+source .venv/bin/activate && python scripts/m1_chat.py "What files are in this project?"
 ```
-/minion-huddle "Review my project structure"
+
+Or run a batch operation:
+
+```
+/minion-swarm
 ```
