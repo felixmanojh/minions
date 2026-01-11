@@ -139,7 +139,7 @@ Build a local first coding assistant where multiple local open source coding mod
   * Test runner tool (pytest, npm test, cargo test)
   * Auto-apply patches (no confirmation)
   * Safety constraints (denylist, path sandbox)
-* M5: judge agent and quality scoring
+* M5: judge agent and quality scoring ✅
   * Judge agent selects best approach
   * Quality rubric scoring
   * Early stopping on consensus

@@ -21,10 +21,11 @@ class Minion(BaseModel):
         - implementer: Code generation, refactoring, tests
         - reviewer: Bug detection, security, correctness
         - patcher: Surgical edits, FIM, minimal diffs
+        - judge: Evaluates proposals, selects best approach
     """
 
     name: str = "Minion"
-    role: Literal["implementer", "reviewer", "patcher"] = "implementer"
+    role: Literal["implementer", "reviewer", "patcher", "judge"] = "implementer"
     model: str = "qwen2.5-coder:7b"
     instructions: str | Callable[[], str] = "You are a helpful coding minion."
     fallback_models: list[str] = Field(default_factory=list)
@@ -110,6 +111,18 @@ PATCHER = Minion(
     temperature=0.1,
 )
 
+JUDGE = Minion(
+    name="Judge",
+    role="judge",
+    model="qwen2.5-coder:7b",
+    instructions=(
+        "You are a code Judge. Evaluate proposals, score them against the quality rubric "
+        "(correctness, minimal diff, tests, security, clarity), and select the best approach."
+    ),
+    fallback_models=["deepseek-coder:6.7b"],
+    temperature=0.1,
+)
+
 
 __all__ = [
     "Minion",
@@ -121,4 +134,5 @@ __all__ = [
     "IMPLEMENTER",
     "REVIEWER",
     "PATCHER",
+    "JUDGE",
 ]

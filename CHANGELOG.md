@@ -17,12 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `MinionTestRunner` (`llm_gc/tools/test_runner.py`) - Auto-detect project type (Python, Node, Rust, Go) and run tests
   - `PatchApplier` (`llm_gc/tools/patch_apply.py`) - Auto-apply patches with backup and rollback
   - `SafetyGuard` (`llm_gc/safety.py`) - Denylist dangerous commands, path sandboxing, secret detection
+- **M5: Judge agent and quality scoring**:
+  - `Judge` (`llm_gc/judge.py`) - Evaluates proposals from other minions
+  - `QualityRubric` - Scores against correctness, minimal diff, tests, security, clarity
+  - `ConsensusDetector` - Early stopping when proposals agree or clear winner emerges
+  - `JUDGE` minion type added to `types.py`
 - **Async refactor** - Swarm and orchestrators now use `asyncio` for parallel execution
 
 ### Changed
 - Dependencies: added `diskcache`, `networkx`, `numpy`, `scipy`
 - Swarm uses `asyncio.gather()` instead of ProcessPoolExecutor
-- Test count: 120 tests
+- Test count: 144 tests
 
 ## [0.1.0] - 2025-01-11
 
