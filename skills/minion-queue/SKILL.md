@@ -97,6 +97,22 @@ python scripts/task_queue.py run-next
 
 This blocks until the task completes, then returns the task JSON with results.
 
+### Run all tasks in parallel
+
+```bash
+python scripts/task_queue.py run-parallel --workers 3
+```
+
+Runs all pending tasks concurrently (default: 3 workers). Great for batch operations.
+
+### Clear completed tasks
+
+```bash
+python scripts/task_queue.py clear-completed
+```
+
+Removes completed and failed tasks from the queue.
+
 ## Task statuses
 
 | Status | Meaning |
@@ -148,10 +164,10 @@ python scripts/task_queue.py --queue-file my-queue.json list
 
 ## Limitations
 
-- Tasks run sequentially (no parallel execution yet)
 - Each task is independent — no shared state between tasks
 - Queue is file-based — not suitable for distributed systems
 - No automatic retry on failure
+- Parallel execution limited by Ollama's throughput
 
 ## Troubleshooting
 

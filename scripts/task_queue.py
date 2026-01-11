@@ -51,6 +51,13 @@ def parse_args() -> argparse.Namespace:
     subparsers.add_parser("list", help="List queued tasks")
     subparsers.add_parser("run-next", help="Execute the next pending task")
 
+    run_parallel = subparsers.add_parser("run-parallel", help="Run all pending tasks in parallel")
+    run_parallel.add_argument(
+        "--workers", type=int, default=3, help="Max concurrent tasks (default: 3)"
+    )
+
+    subparsers.add_parser("clear-completed", help="Remove completed/failed tasks from queue")
+
     return parser.parse_args()
 
 
@@ -83,6 +90,25 @@ def main() -> None:
             print("No pending tasks.")
             return
         print(json.dumps(task.__dict__, indent=2))
+    elif args.command == "run-parallel":
+        print(f"Running pending tasks with {args.workers} workers...")
+        results = queue.run_parallel(max_workers=args.workers)
+        if not results:
+            print("No pending tasks.")
+            return
+        print(f"\nCompleted {len(results)} tasks:")
+        for task in results:
+            status_icon = "✓" if task.status == "completed" else "✗"
+            print(f"  {status_icon} {task.description[:50]}...")
+            if task.result_path:
+                print(f"    → {task.result_path}")
+        print(json.dumps([t.__dict__ for t in results], indent=2))
+    elif args.command == "clear-completed":
+        before = len(queue.tasks)
+        queue.tasks = [t for t in queue.tasks if t.status == "pending"]
+        queue._persist()
+        removed = before - len(queue.tasks)
+        print(f"Removed {removed} completed/failed tasks.")
     else:  # pragma: no cover
         raise ValueError(f"Unknown command {args.command}")
 
