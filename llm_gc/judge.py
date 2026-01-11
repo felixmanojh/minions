@@ -6,11 +6,14 @@ against a quality rubric. Enables early stopping on consensus.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from llm_gc.metrics import log_metric
 
 
 class QualityCriterion(str, Enum):
@@ -237,6 +240,7 @@ class Judge:
         Returns:
             JudgmentResult with selected proposal and scores
         """
+        start_time = time.time()
         self.current_round += 1
         context = context or {}
 
@@ -286,6 +290,17 @@ class Judge:
             result.final_recommendation = self._build_recommendation(selected, sorted_proposals)
             result.risk_notes = self._extract_risks(sorted_proposals)
             result.test_plan = self._build_test_plan(selected, task)
+
+        # Log judge metrics
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_metric(
+            task_type="judge",
+            task_description=task[:100],
+            duration_ms=duration_ms,
+            role="judge",
+            success=selected is not None,
+            judge_score=selected.total_score if selected else None,
+        )
 
         return result
 

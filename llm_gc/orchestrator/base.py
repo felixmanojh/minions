@@ -13,6 +13,7 @@ import httpx
 from rich.console import Console
 
 from llm_gc.config import ModelConfig
+from llm_gc.metrics import log_metric
 from llm_gc.ollama import get_ollama_base_url
 
 console = Console()
@@ -41,7 +42,7 @@ class OllamaClient:
             base_url=base_url or get_ollama_base_url(), timeout=timeout
         )
 
-    async def prompt(self, prompt: str, config: ModelConfig) -> tuple[str, float]:
+    async def prompt(self, prompt: str, config: ModelConfig, role: str = "") -> tuple[str, float]:
         payload = {
             "model": config.model,
             "prompt": prompt,
@@ -52,11 +53,31 @@ class OllamaClient:
             "stream": False,
         }
         start = perf_counter()
-        response = await self._client.post("/api/generate", json=payload)
-        latency_ms = (perf_counter() - start) * 1000
-        response.raise_for_status()
-        data = response.json()
-        text = (data.get("response") or "").strip()
+        success = True
+        error_msg = None
+        try:
+            response = await self._client.post("/api/generate", json=payload)
+            latency_ms = (perf_counter() - start) * 1000
+            response.raise_for_status()
+            data = response.json()
+            text = (data.get("response") or "").strip()
+        except Exception as e:
+            latency_ms = (perf_counter() - start) * 1000
+            success = False
+            error_msg = str(e)
+            text = ""
+            raise
+        finally:
+            log_metric(
+                task_type="chat",
+                task_description=prompt[:100],
+                duration_ms=int(latency_ms),
+                model=config.model,
+                role=role,
+                tokens_estimated=config.max_tokens,
+                success=success,
+                error=error_msg,
+            )
         return text, latency_ms
 
 

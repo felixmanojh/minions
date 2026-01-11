@@ -16,6 +16,7 @@ except ImportError:
     TQDM_AVAILABLE = False
 
 from llm_gc.bananas import add_bananas, celebrate, get_bananas
+from llm_gc.metrics import log_metric
 from llm_gc.orchestrator.m1_chat import run_chat
 from llm_gc.orchestrator.m3_patch import run_patch
 from llm_gc.skill import parse_read_requests
@@ -59,6 +60,7 @@ def simplify_prompt(prompt: str, retry_count: int) -> str:
 async def run_minion_task(task: MinionTask) -> MinionTask:
     """Run a single minion task with retry logic."""
     prompt = simplify_prompt(task.description, task.retries)
+    start_time = time.time()
 
     try:
         if task.kind == "patch":
@@ -83,6 +85,18 @@ async def run_minion_task(task: MinionTask) -> MinionTask:
     except Exception as e:
         task.error = str(e)
         task.status = "failed"
+
+    duration_ms = int((time.time() - start_time) * 1000)
+    log_metric(
+        task_type="swarm",
+        task_description=task.description,
+        duration_ms=duration_ms,
+        role="implementer" if task.kind == "patch" else "chat",
+        success=task.status == "completed",
+        retries=task.retries,
+        error=task.error,
+        patch_applied=task.kind == "patch" and task.status == "completed",
+    )
 
     return task
 

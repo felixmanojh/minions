@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from llm_gc.metrics import log_metric
 from llm_gc.patcher import apply_patch_robust, PatchAttempt
 
 
@@ -83,6 +85,7 @@ class PatchApplier:
         Returns:
             ApplyResult with status
         """
+        start_time = time.time()
         # Resolve path
         path = Path(file_path)
         if not path.is_absolute():
@@ -146,6 +149,14 @@ class PatchApplier:
                 backup_path=backup_path,
             )
 
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_metric(
+            task_type="apply",
+            task_description=f"Apply patch: {file_path}",
+            duration_ms=duration_ms,
+            success=True,
+            patch_applied=True,
+        )
         return ApplyResult(
             success=True,
             file_path=str(file_path),

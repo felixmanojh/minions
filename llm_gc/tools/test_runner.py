@@ -11,6 +11,8 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from llm_gc.metrics import log_metric
+
 # Test commands by project type (in order of preference)
 TEST_COMMANDS = {
     "python": [
@@ -162,7 +164,7 @@ class MinionTestRunner:
             # Parse test counts from output
             passed, failed, skipped = self._parse_test_counts(stdout_str + stderr_str)
 
-            return TestResult(
+            result = TestResult(
                 success=proc.returncode == 0,
                 command=" ".join(cmd),
                 exit_code=proc.returncode or 0,
@@ -173,15 +175,31 @@ class MinionTestRunner:
                 tests_failed=failed,
                 tests_skipped=skipped,
             )
+            log_metric(
+                task_type="test",
+                task_description=f"Run tests: {test_path or 'all'}",
+                duration_ms=duration_ms,
+                success=result.success,
+                tests_passed=result.success,
+            )
+            return result
 
         except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            log_metric(
+                task_type="test",
+                task_description=f"Run tests: {test_path or 'all'}",
+                duration_ms=duration_ms,
+                success=False,
+                error=str(e),
+            )
             return TestResult(
                 success=False,
                 command=" ".join(cmd),
                 exit_code=-1,
                 stdout="",
                 stderr="",
-                duration_ms=int((time.time() - start) * 1000),
+                duration_ms=duration_ms,
                 error=str(e),
             )
 
