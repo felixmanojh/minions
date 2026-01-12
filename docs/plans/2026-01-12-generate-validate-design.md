@@ -3,6 +3,14 @@
 **Date:** 2026-01-12
 **Status:** Draft
 
+## References
+
+Best practices incorporated from:
+- [Aider: Linting and testing](https://aider.chat/docs/usage/lint-test.html) - AST-based linting, error context
+- [Aider: Linting with tree-sitter](https://aider.chat/2024/05/22/linting.html) - Language-agnostic parsing
+- [Awesome-LLMs-as-Judges](https://github.com/CSHaitao/Awesome-LLMs-as-Judges) - LLM-as-judge patterns
+- [Self-Verification LLM](https://github.com/WENGSYX/Self-Verification) - Structured validation
+
 ## Overview
 
 Add a validation step to minion operations. After generation, a second model checks the output before applying changes. This catches errors proactively instead of reactively.
@@ -23,6 +31,79 @@ The validator checks three things:
 3. **Preservation** - Is the original logic intact (no accidental changes)?
 
 Validator returns: `PASS` or `FAIL` with reason.
+
+## Pre-Validation: AST Linting (from Aider)
+
+Before LLM validation, run fast AST-based syntax check using tree-sitter:
+
+```
+┌──────────┐     ┌───────────┐     ┌───────────┐     ┌─────────┐
+│ Generate │ ──▶ │ AST Lint  │ ──▶ │ Validate  │ ──▶ │  Apply  │
+│ (Model A)│     │(tree-sitter)│   │ (Model B) │     │ or Fail │
+└──────────┘     └───────────┘     └───────────┘     └─────────┘
+                      │
+                      ▼ (fail fast on syntax errors)
+```
+
+Benefits:
+- **Fast** - No LLM call needed for obvious syntax errors
+- **Language-agnostic** - tree-sitter supports 100+ languages
+- **Precise** - Reports exact error location in AST
+
+```python
+# llm_gc/linter.py
+import tree_sitter_python as tspython
+from tree_sitter import Language, Parser
+
+def check_syntax(code: str, language: str = "python") -> tuple[bool, list[dict]]:
+    """Check syntax using tree-sitter AST parsing.
+
+    Returns (is_valid, errors) where errors contain line/column info.
+    """
+    parser = Parser(Language(tspython.language()))
+    tree = parser.parse(bytes(code, "utf8"))
+
+    errors = []
+    def find_errors(node):
+        if node.type == "ERROR":
+            errors.append({
+                "line": node.start_point[0] + 1,
+                "column": node.start_point[1],
+                "text": code.splitlines()[node.start_point[0]] if node.start_point[0] < len(code.splitlines()) else ""
+            })
+        for child in node.children:
+            find_errors(child)
+
+    find_errors(tree.root_node)
+    return len(errors) == 0, errors
+```
+
+## Error Context (from Aider)
+
+When reporting errors to the LLM validator, show surrounding function/class context, not just line numbers. LLMs are bad at line numbers but good with context.
+
+```python
+def get_error_context(code: str, error_line: int) -> str:
+    """Get the function/class containing the error line."""
+    # Use tree-sitter to find enclosing scope
+    # Return: function name + signature + error line highlighted
+```
+
+Example error report to validator:
+```
+Syntax error in function `process_data`:
+
+def process_data(items: list) -> dict:
+    result = {}
+    for item in items:
+        result[item.id] = item.value  # <-- ERROR: unexpected indent
+    return result
+```
+
+Not:
+```
+Syntax error on line 42
+```
 
 ## Failure Handling
 
@@ -253,25 +334,84 @@ python scripts/minions.py polish src/foo.py
 python scripts/minions.py polish src/foo.py --no-validate
 ```
 
+## Custom Linting (from Aider)
+
+Users can specify their own linter command for additional checks:
+
+```bash
+# Use ruff for Python
+python scripts/minions.py polish src/foo.py --lint-cmd "ruff check"
+
+# Use eslint for JavaScript
+python scripts/minions.py polish src/app.js --lint-cmd "eslint"
+
+# Disable all linting (AST + custom)
+python scripts/minions.py polish src/foo.py --no-lint
+```
+
+Linting runs after generation, before LLM validation:
+1. AST check (tree-sitter) - always runs unless `--no-lint`
+2. Custom lint (if `--lint-cmd`) - runs user's linter
+3. LLM validation - runs unless `--no-validate`
+
+If any step fails, skip to next file with error logged.
+
 ## Implementation Tasks
 
+### Phase 1: Core Validation
 1. Update `models.yaml` with validator config
-2. Update `get_minion_config()` → `get_configs()` returning both
-3. Add `validate_change()` function in new `llm_gc/validator.py`
-4. Add failure logging to `~/.minions/failures.log`
-5. Update `polish_file()` to call validator before write
-6. Update `sweep` to use validation
-7. Rewrite `setup` command with interactive flow
-8. Add `--no-validate` and `--validator-model` flags
-9. Update SKILL.md docs
+2. Update `get_minion_config()` → `get_configs()` returning both minion + validator
+3. Add `llm_gc/linter.py` with tree-sitter AST checking
+4. Add `llm_gc/validator.py` with LLM validation logic
+5. Add `get_error_context()` for LLM-friendly error reporting
+6. Add failure logging to `~/.minions/failures.log`
+
+### Phase 2: Integration
+7. Update `polish_file()` flow: generate → AST lint → LLM validate → apply
+8. Update `sweep` to use validation
+9. Add `--no-validate`, `--no-lint`, `--validator-model`, `--lint-cmd` flags
+
+### Phase 3: Interactive Setup
+10. Rewrite `setup` command with interactive model selection
+11. Add model download flow with progress
+12. Save user choices to `models.yaml`
+
+### Phase 4: Documentation
+13. Update SKILL.md docs with new flags
+14. Update README with validation explanation
+
+### Dependencies to Add
+```
+tree-sitter>=0.21.0
+tree-sitter-python>=0.21.0
+tree-sitter-javascript>=0.21.0  # for JS support
+```
 
 ## Trade-offs
 
-| Aspect | With Validation | Without |
-|--------|----------------|---------|
-| Latency | 2x (two model calls) | 1x |
-| Accuracy | Higher - catches errors | Lower |
-| Safety | Proactive | Reactive (syntax check only) |
-| Complexity | More code | Simpler |
+| Aspect | Full Validation | AST Only | None |
+|--------|----------------|----------|------|
+| Latency | ~2x (AST + LLM) | ~1.1x | 1x |
+| Accuracy | Highest | Medium | Low |
+| Safety | Proactive | Catches syntax | Reactive |
+| Complexity | Most code | Moderate | Simple |
 
-Validation is worth it for auto-apply tasks (polish, sweep) where bad output = broken code.
+### When to Use What
+
+| Mode | Use Case |
+|------|----------|
+| Full validation | Auto-apply (polish, sweep) - bad output = broken code |
+| AST only (`--no-validate`) | Quick iterations, trusted prompts |
+| None (`--no-lint --no-validate`) | Debugging, testing minion output |
+
+## Future Enhancements (Not in Scope)
+
+From research, interesting patterns we could add later:
+
+1. **Retry loop** (from Aider) - On validation failure, send error back to generator for fix attempt. Adds complexity but improves success rate.
+
+2. **Self-consistency** (from LLM-as-judge research) - Run validation 3x, require consensus. Overkill for our use case.
+
+3. **Fine-tuned judge** (from JudgeLM) - Train a specialized model for code validation. Too much effort for now.
+
+Keeping scope minimal for v1.
