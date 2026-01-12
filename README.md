@@ -240,7 +240,7 @@ presets:
     minion:
       model: qwen2.5-coder:7b
       temperature: 0.2
-      max_tokens: 1024
+      max_tokens: 8192
       num_ctx: 32768
     validator: same  # use minion for validation
 
@@ -248,19 +248,19 @@ presets:
     minion:
       model: qwen2.5-coder:7b
       temperature: 0.2
-      max_tokens: 1024
+      max_tokens: 8192
       num_ctx: 32768
     validator:
-      model: qwen2.5-coder:1.5b
+      model: qwen2.5-coder:7b
       temperature: 0.1
       max_tokens: 400
-      num_ctx: 16384
+      num_ctx: 32768
 
   expert:
     minion:
       model: qwen2.5-coder:14b
       temperature: 0.2
-      max_tokens: 2048
+      max_tokens: 16384
       num_ctx: 65536
     validator:
       model: deepseek-coder:33b

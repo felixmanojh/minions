@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Auto-apply polish (docstrings, types, etc.) to files using local minions."""
+"""Auto-apply polish (docstrings, types, etc.) to files using local minions.
+
+Flow: Generate → AST Lint → LLM Validate → Retry → Apply
+"""
 
 from __future__ import annotations
 
@@ -17,12 +20,15 @@ ensure_venv()
 import argparse
 import asyncio
 import json
-import subprocess
 from dataclasses import dataclass, field
+from typing import Optional
 
-from llm_gc.config import load_models, get_num_ctx_override
+from llm_gc.config import get_configs, get_validator_config, MinionConfigs
 from llm_gc.orchestrator.base import OllamaClient
 from llm_gc.parsers.code_blocks import parse_file_blocks
+from llm_gc.linter import basic_lint, get_error_context, run_external_linter
+from llm_gc.validator import CodeValidator, create_retry_prompt, ValidationResult
+from llm_gc.logging import log_failure, log_success
 
 
 # Task presets
@@ -52,17 +58,102 @@ class PolishResult:
     applied: bool
     changes: list[str] = field(default_factory=list)
     error: str | None = None
+    attempts: int = 1
+
+
+@dataclass
+class PolishConfig:
+    """Configuration for polish operation."""
+    backup: bool = False
+    dry_run: bool = False
+    no_lint: bool = False
+    no_validate: bool = False
+    lint_cmd: str | None = None
+    max_retries: int = 1
+
+
+async def generate_polish(
+    client: OllamaClient,
+    config,
+    filepath: Path,
+    content: str,
+    task_prompt: str,
+) -> tuple[str | None, str | None]:
+    """Generate polished code.
+
+    Returns:
+        (generated_content, error_message)
+    """
+    prompt = f"""{POLISH_SYSTEM_PROMPT}
+
+Task: {task_prompt}
+
+File: {filepath.name}
+
+```python
+{content}
+```
+
+Output the complete modified file:"""
+
+    try:
+        response, _ = await client.prompt(prompt, config, role="polish")
+    except Exception as e:
+        return None, f"Minion failed: {e}"
+
+    # Parse response for code block
+    blocks = parse_file_blocks(response, fallback_path=filepath)
+    if not blocks:
+        # Check for truncation (has opening fence but no closing)
+        if "```" in response[:50] and "```" not in response[-20:]:
+            return None, "Response truncated (increase max_tokens or reduce file size)"
+        return None, "No code block in response"
+
+    return blocks[0].content, None
+
+
+async def generate_with_retry(
+    client: OllamaClient,
+    config,
+    filepath: Path,
+    original: str,
+    generated: str,
+    error: str,
+) -> tuple[str | None, str | None]:
+    """Generate fixed code after error feedback.
+
+    Returns:
+        (generated_content, error_message)
+    """
+    prompt = create_retry_prompt(original, generated, error, lang="python")
+
+    try:
+        response, _ = await client.prompt(prompt, config, role="polish")
+    except Exception as e:
+        return None, f"Retry failed: {e}"
+
+    # Parse response for code block
+    blocks = parse_file_blocks(response, fallback_path=filepath)
+    if not blocks:
+        # Check for truncation (has opening fence but no closing)
+        if "```" in response[:50] and "```" not in response[-20:]:
+            return None, "Retry response truncated (increase max_tokens or reduce file size)"
+        return None, "No code block in retry response"
+
+    return blocks[0].content, None
 
 
 async def polish_file(
     filepath: Path,
     task: str,
     client: OllamaClient,
-    config,
-    backup: bool = False,
-    dry_run: bool = False,
+    configs: MinionConfigs,
+    polish_config: PolishConfig,
 ) -> PolishResult:
-    """Polish a single file."""
+    """Polish a single file with full validation pipeline.
+
+    Flow: Generate → AST Lint → LLM Validate → Retry → Apply
+    """
     result = PolishResult(file=str(filepath), applied=False)
 
     # Check file exists and is readable
@@ -80,71 +171,107 @@ async def polish_file(
     # Resolve task prompt
     task_prompt = TASK_PROMPTS.get(task, task)
 
-    # Build prompt
-    prompt = f"""{POLISH_SYSTEM_PROMPT}
-
-Task: {task_prompt}
-
-File: {filepath.name}
-
-```python
-{content}
-```
-
-Output the complete modified file:"""
-
-    # Call minion
-    try:
-        response, latency_ms = await client.prompt(prompt, config, role="polish")
-    except Exception as e:
-        result.error = f"Minion failed: {e}"
+    # === GENERATE ===
+    generated, gen_error = await generate_polish(
+        client, configs.minion, filepath, content, task_prompt
+    )
+    if gen_error:
+        result.error = gen_error
+        log_failure(str(filepath), gen_error, task=task, original=content)
         return result
 
-    # Parse response for code block
-    blocks = parse_file_blocks(response, fallback_path=filepath)
-    if not blocks:
-        # Try to extract raw code if no fence found
-        result.error = "No code block in response"
-        return result
+    attempt = 1
+    max_attempts = 1 + configs.validation.max_retries
 
-    new_content = blocks[0].content
+    while attempt <= max_attempts:
+        result.attempts = attempt
 
-    # Check if content actually changed
-    if new_content.strip() == content.strip():
-        result.changes.append("No changes needed")
-        result.applied = True
-        return result
+        # Check if content actually changed
+        if generated.strip() == content.strip():
+            result.changes.append("No changes needed")
+            result.applied = True
+            return result
 
-    if dry_run:
+        # === AST LINT ===
+        if not polish_config.no_lint:
+            lint_result = basic_lint(str(filepath), generated)
+            if lint_result and lint_result.has_errors:
+                error_ctx = get_error_context(str(filepath), generated, lint_result.lines)
+
+                if attempt < max_attempts:
+                    # Retry with error context
+                    generated, retry_error = await generate_with_retry(
+                        client, configs.minion, filepath, content, generated, error_ctx
+                    )
+                    if retry_error:
+                        result.error = retry_error
+                        log_failure(str(filepath), retry_error, task=task, original=content, generated=generated, attempts=attempt)
+                        return result
+                    attempt += 1
+                    continue
+                else:
+                    result.error = f"Syntax errors persist after {attempt} attempts"
+                    log_failure(str(filepath), result.error, task=task, original=content, generated=generated, attempts=attempt)
+                    return result
+
+        # === CUSTOM LINT ===
+        if polish_config.lint_cmd:
+            # Write temp file for external linter
+            temp_path = filepath.with_suffix(filepath.suffix + ".tmp")
+            temp_path.write_text(generated)
+            try:
+                ext_result = run_external_linter(polish_config.lint_cmd, str(temp_path))
+                if ext_result and ext_result.has_errors:
+                    result.error = ext_result.text[:200]
+                    log_failure(str(filepath), result.error, task=task, original=content, generated=generated, attempts=attempt)
+                    return result
+            finally:
+                temp_path.unlink(missing_ok=True)
+
+        # === LLM VALIDATE ===
+        if not polish_config.no_validate:
+            validator_config = get_validator_config(configs)
+            validator = CodeValidator(client=client, config=validator_config)
+
+            val_result = await validator.validate(content, generated, task_prompt)
+
+            if not val_result.passed:
+                if attempt < max_attempts:
+                    # Retry with validation error
+                    generated, retry_error = await generate_with_retry(
+                        client, configs.minion, filepath, content, generated, val_result.reason or "Validation failed"
+                    )
+                    if retry_error:
+                        result.error = retry_error
+                        log_failure(str(filepath), retry_error, task=task, original=content, generated=generated, attempts=attempt)
+                        return result
+                    attempt += 1
+                    continue
+                else:
+                    result.error = f"Validation failed: {val_result.reason}"
+                    log_failure(str(filepath), result.error, task=task, original=content, generated=generated, attempts=attempt)
+                    return result
+
+        # All checks passed, exit retry loop
+        break
+
+    # === DRY RUN ===
+    if polish_config.dry_run:
         result.changes.append("Would apply changes (dry-run)")
         result.applied = True
         return result
 
-    # Backup if requested
-    if backup:
+    # === BACKUP ===
+    if polish_config.backup:
         backup_path = filepath.with_suffix(filepath.suffix + ".bak")
         backup_path.write_text(content)
 
-    # Write new content
-    filepath.write_text(new_content)
-
-    # Syntax check for Python files
-    if filepath.suffix == ".py":
-        try:
-            subprocess.run(
-                [sys.executable, "-m", "py_compile", str(filepath)],
-                check=True,
-                capture_output=True,
-            )
-        except subprocess.CalledProcessError as e:
-            # Revert on syntax error
-            filepath.write_text(content)
-            result.error = f"Syntax error, reverted: {e.stderr.decode()[:200]}"
-            return result
+    # === APPLY ===
+    filepath.write_text(generated)
 
     # Detect what changed (simple heuristic)
     old_lines = set(content.splitlines())
-    new_lines = set(new_content.splitlines())
+    new_lines = set(generated.splitlines())
     added = new_lines - old_lines
 
     # Count docstrings added
@@ -161,6 +288,7 @@ Output the complete modified file:"""
         result.changes.append("Applied polish")
 
     result.applied = True
+    log_success(str(filepath), task=task, original=content, generated=generated, attempts=result.attempts)
     return result
 
 
@@ -168,26 +296,39 @@ async def run_polish(
     files: list[Path],
     task: str,
     preset: str | None = None,
-    config_path: Path | None = None,
     num_ctx: int | None = None,
     backup: bool = False,
     dry_run: bool = False,
+    no_lint: bool = False,
+    no_validate: bool = False,
+    lint_cmd: str | None = None,
+    max_retries: int | None = None,
 ) -> dict:
     """Polish multiple files."""
-    models = load_models(config_path, preset=preset)
-    config = models.get("implementer")
-    if not config:
-        raise KeyError("No 'implementer' config found")
+    configs = get_configs(preset=preset)
 
     # Apply num_ctx override
-    ctx_override = num_ctx or get_num_ctx_override()
-    if ctx_override:
-        config = config.__class__(
-            model=config.model,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            num_ctx=ctx_override,
+    if num_ctx:
+        from llm_gc.config import ModelConfig
+        configs.minion = ModelConfig(
+            model=configs.minion.model,
+            temperature=configs.minion.temperature,
+            max_tokens=configs.minion.max_tokens,
+            num_ctx=num_ctx,
         )
+
+    # Override max_retries if specified
+    if max_retries is not None:
+        configs.validation.max_retries = max_retries
+
+    polish_config = PolishConfig(
+        backup=backup,
+        dry_run=dry_run,
+        no_lint=no_lint,
+        no_validate=no_validate,
+        lint_cmd=lint_cmd,
+        max_retries=configs.validation.max_retries,
+    )
 
     client = OllamaClient()
     results: list[PolishResult] = []
@@ -197,16 +338,16 @@ async def run_polish(
             filepath=filepath,
             task=task,
             client=client,
-            config=config,
-            backup=backup,
-            dry_run=dry_run,
+            configs=configs,
+            polish_config=polish_config,
         )
         results.append(result)
 
         # Print progress
         status = "✓" if result.applied else "✗"
         detail = ", ".join(result.changes) if result.changes else result.error or "failed"
-        print(f"{status} {filepath}: {detail}")
+        attempts_info = f" ({result.attempts} attempts)" if result.attempts > 1 else ""
+        print(f"{status} {filepath}: {detail}{attempts_info}")
 
     # Build summary
     applied = [r for r in results if r.applied]
@@ -220,7 +361,7 @@ async def run_polish(
             for r in results if r.changes
         ],
         "errors": [
-            {"file": r.file, "error": r.error}
+            {"file": r.file, "error": r.error, "attempts": r.attempts}
             for r in failed
         ],
         "stats": {
@@ -248,7 +389,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--preset",
-        choices=["lite", "medium", "large"],
+        choices=["lite", "standard", "expert"],
         default=None,
         help="Model preset",
     )
@@ -269,6 +410,33 @@ def parse_args() -> argparse.Namespace:
         help="Show what would change without applying",
     )
     parser.add_argument(
+        "--no-lint",
+        action="store_true",
+        help="Skip AST syntax checking",
+    )
+    parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="Skip LLM validation",
+    )
+    parser.add_argument(
+        "--lint-cmd",
+        type=str,
+        default=None,
+        help="Custom linter command (e.g., 'ruff check')",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=None,
+        help="Max retry attempts on failure (default: from config)",
+    )
+    parser.add_argument(
+        "--no-retry",
+        action="store_true",
+        help="Disable retry on failure",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Output JSON result",
@@ -279,6 +447,8 @@ def parse_args() -> argparse.Namespace:
 async def main() -> None:
     args = parse_args()
 
+    max_retries = 0 if args.no_retry else args.max_retries
+
     result = await run_polish(
         files=args.files,
         task=args.task,
@@ -286,6 +456,10 @@ async def main() -> None:
         num_ctx=args.num_ctx,
         backup=args.backup,
         dry_run=args.dry_run,
+        no_lint=args.no_lint,
+        no_validate=args.no_validate,
+        lint_cmd=args.lint_cmd,
+        max_retries=max_retries,
     )
 
     if args.json:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+
 try:
     from grep_ast import grep
 except ImportError:  # pragma: no cover
@@ -13,6 +14,8 @@ except ImportError:  # pragma: no cover
 
 @dataclass
 class RepoSymbol:
+    """Represents a symbol in the repository."""
+
     path: Path
     signature: str
     kind: str
@@ -20,9 +23,12 @@ class RepoSymbol:
 
 @dataclass
 class RepoMap:
+    """Represents the structural map of the repository."""
+
     symbols: list[RepoSymbol]
 
     def as_text(self) -> str:
+        """Converts the repository map to a text representation."""
         lines = []
         for symbol in self.symbols:
             lines.append(f"{symbol.path}:")
@@ -36,6 +42,7 @@ SUPPORTED_LANGS = {
 
 
 def build_repomap(root: str | Path) -> RepoMap:
+    """Builds the repository map for a given root directory."""
     root_path = Path(root).resolve()
     if grep is None:
         return RepoMap(symbols=[])

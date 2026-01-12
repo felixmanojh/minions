@@ -162,6 +162,10 @@ async def run_sweep(
     preset: str | None = None,
     num_ctx: int | None = None,
     backup: bool = False,
+    no_lint: bool = False,
+    no_validate: bool = False,
+    lint_cmd: str | None = None,
+    max_retries: int | None = None,
 ) -> dict:
     """Sweep directory for files needing polish."""
     candidates, skipped = discover_candidates(directory, task, max_lines)
@@ -198,6 +202,10 @@ async def run_sweep(
         preset=preset,
         num_ctx=num_ctx,
         backup=backup,
+        no_lint=no_lint,
+        no_validate=no_validate,
+        lint_cmd=lint_cmd,
+        max_retries=max_retries,
     )
 
     result["applied"] = polish_result["applied"]

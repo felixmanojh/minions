@@ -1,32 +1,49 @@
 # Minions Model Configuration
 #
-# Minions are one-shot: send task → get result
-# Single model handles all tasks (docstrings, types, patches)
+# Minions use Generate → Validate flow:
+#   • Minion (generator) creates code changes
+#   • Validator checks before applying
 #
 # Override via environment:
 #   MINIONS_MODEL=qwen2.5-coder:14b
+#   MINIONS_VALIDATOR=codellama:7b
 #   MINIONS_NUM_CTX=65536
 
-preset: medium
+preset: standard
+
+validation:
+  max_retries: 1        # 0 = no retry, 1 = one retry (default)
+  notify_on_fail: true  # return structured error for Claude Code
 
 presets:
   lite:
     minion:
-      model: qwen2.5-coder:1.5b
+      model: qwen2.5-coder:7b
       temperature: 0.2
-      max_tokens: 1024
-      num_ctx: 16384
+      max_tokens: 8192      # Must be large enough for full file output
+      num_ctx: 32768
+    validator: same  # use minion model for validation
 
-  medium:
+  standard:
     minion:
       model: qwen2.5-coder:7b
       temperature: 0.2
-      max_tokens: 1024
+      max_tokens: 8192      # Must be large enough for full file output
+      num_ctx: 32768
+    validator:
+      model: qwen2.5-coder:7b   # Same as minion - 1.5b unreliable on large files
+      temperature: 0.1
+      max_tokens: 400
       num_ctx: 32768
 
-  large:
+  expert:
     minion:
       model: qwen2.5-coder:14b
       temperature: 0.2
-      max_tokens: 2048
+      max_tokens: 16384     # Larger for bigger files
       num_ctx: 65536
+    validator:
+      model: deepseek-coder:33b
+      temperature: 0.1
+      max_tokens: 400
+      num_ctx: 32768

@@ -4,35 +4,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Local Multi LLM Group Chat (`llm-gc`) is a local-first coding assistant where multiple open-source models collaborate in a group chat to solve programming tasks. Models are agents with roles (Implementer, Reviewer, Bug Hunter, etc.) that critique each other's proposals before producing a final patch.
+**Minions** - Local LLM helpers for mechanical code tasks. Offload grunt work (docstrings, type hints, comments) to local Ollama models with a Generate → Validate → Retry safety pipeline.
 
 ## Commands
 
-### Prerequisites
+### Quick Start
 ```bash
-# Start Ollama service (required)
-ollama serve
-
-# Install dependencies (one time)
-python3 -m venv .venv
-source .venv/bin/activate
-pip install "pyautogen>=0.3" httpx pydantic[yaml] rich diff-match-patch grep-ast tree-sitter
+ollama serve                              # Start Ollama
+minions setup                             # Check status
+minions setup -i                          # Interactive config
 ```
 
-### Running the Chat
+### Common Tasks
 ```bash
-source .venv/bin/activate
-python scripts/m1_chat.py "Your task description" --rounds 3
+# Polish files (auto-apply with validation)
+minions polish src/file.py --task docstrings
+minions polish src/*.py --task all --dry-run
 
-# With file context
-python scripts/m1_chat.py "Refactor X" --repo-root . --read PLAN.md --read src/main.py:1-50
+# Sweep codebase
+minions sweep src/ --task all --apply
+
+# Generate patch for review
+minions patch "Add header comment" --target src/file.py
+
+# Batch patch
+minions swarm "Add docstrings" file1.py file2.py --workers 3
 ```
 
-### Ollama Model Management
+### Testing
 ```bash
-ollama list                          # List available models
-ollama pull qwen2.5-coder:1.5b       # Pull a model
-curl http://127.0.0.1:11434/api/tags # Health check
+source .venv/bin/activate
+pytest tests/ -v
 ```
 
 ## Architecture
@@ -40,50 +42,85 @@ curl http://127.0.0.1:11434/api/tags # Health check
 ```
 llm_gc/
 ├── config/
-│   ├── __init__.py     # ModelConfig pydantic model, load_models() from YAML
-│   └── models.yaml     # Role -> Ollama model mapping (implementer, reviewer)
+│   ├── __init__.py     # get_configs(), MinionConfigs, ModelConfig
+│   └── models.yaml     # Presets: lite/standard/expert
 ├── orchestrator/
-│   ├── base.py         # OllamaClient (HTTP wrapper), ChatTurn, persist_transcript()
-│   └── m1_chat.py      # ChatOrchestrator: turn scheduling, prompt building, repo context
+│   ├── base.py         # OllamaClient, ChatTurn, persist_transcript()
+│   ├── m1_chat.py      # Single-shot minion task executor
+│   └── m3_patch.py     # Patch generator
+├── linter.py           # AST syntax checking (tree-sitter + Python compile)
+├── validator.py        # LLM-based validation (PASS/FAIL)
+├── logging.py          # Failure logs to ~/.minions/
+├── setup.py            # Interactive model configuration
 └── tools/
-    ├── file_reader.py  # FileReader with path sandboxing (repo root only)
-    └── repo_summary.py # build_repo_summary(): README + git status + directory tree
+    └── ...             # File reading, repo summary, diff generation
+
+scripts/
+├── minions.py          # Unified CLI entry point
+├── m_polish.py         # Polish command (Generate → Validate → Apply)
+├── m_sweep.py          # Codebase sweep + batch polish
+└── swarm.py            # Parallel patch execution
 ```
 
-**Data flow:**
-1. `scripts/m1_chat.py` parses CLI args → calls `run_chat()`
-2. `ChatOrchestrator` loads model configs, builds repo context (summary + file snippets)
-3. Agents take turns: prompt built with system message + task + repo context + history
-4. `OllamaClient.generate()` calls Ollama HTTP API at `localhost:11434`
-5. Transcript persisted to `sessions/<timestamp>.json`
+## Validation Pipeline
+
+```
+Generate → AST Lint → LLM Validate → Retry → Apply
+              ↑______________|
+```
+
+1. **Generate**: Minion model creates code changes
+2. **AST Lint**: Fast syntax check (tree-sitter or Python compile)
+3. **LLM Validate**: Second model checks task completion + code preservation
+4. **Retry**: On failure, error sent back to minion to fix
+5. **Apply**: Only after validation passes
 
 ## Configuration
 
-Models are configured in `llm_gc/config/models.yaml`:
+`llm_gc/config/models.yaml`:
 ```yaml
-implementer:
-  model: qwen2.5-coder:1.5b
-  temperature: 0.2
-  max_tokens: 512
-reviewer:
-  model: deepseek-coder:1.3b
-  temperature: 0.15
-  max_tokens: 400
+preset: standard
+
+validation:
+  max_retries: 1
+  notify_on_fail: true
+
+presets:
+  lite:
+    minion: { model: qwen2.5-coder:7b, ... }
+    validator: same  # use minion
+  standard:
+    minion: { model: qwen2.5-coder:7b, ... }
+    validator: { model: codellama:7b-code, ... }
+  expert:
+    minion: { model: qwen2.5-coder:14b, ... }
+    validator: { model: deepseek-coder:33b, ... }
 ```
 
-Add new roles by adding entries here and corresponding `AgentSpec` in `m1_chat.py`.
+Environment overrides:
+```bash
+MINIONS_MODEL=qwen2.5-coder:14b
+MINIONS_VALIDATOR=codellama:7b
+MINIONS_NUM_CTX=65536
+MINIONS_PRESET=expert
+```
 
-## Milestones
+## Key Files
 
-- **M0**: Ollama setup (complete)
-- **M1**: Basic group chat with Implementer/Reviewer (complete)
-- **M2**: Read-only tools and repo summarizer (in progress)
-- **M3**: Patch generation with unified diff (pending)
-- **M4**: Guarded test runner and apply flow (pending)
-- **M5**: Judge scoring and stopping rules (pending)
+| File | Purpose |
+|------|---------|
+| `scripts/minions.py` | Unified CLI (polish, sweep, patch, swarm, setup) |
+| `scripts/m_polish.py` | Full validation pipeline implementation |
+| `llm_gc/config/__init__.py` | Config loading, `get_configs()`, `MinionConfigs` |
+| `llm_gc/linter.py` | AST syntax checking |
+| `llm_gc/validator.py` | LLM validation (CodeValidator, ValidationResult) |
+| `llm_gc/logging.py` | Failure logging to ~/.minions/ |
 
 ## Safety Constraints
 
-- File operations are sandboxed to repo root via `FileReader._resolve()`
-- No shell execution or file writes by agents (transcripts only)
-- Token/round limits enforced by orchestrator
+- **AST Lint**: Catches syntax errors before LLM validation
+- **LLM Validation**: Checks task completion and code preservation
+- **Retry Loop**: Gives minion chance to fix errors
+- **Failure Logging**: Full session data saved for debugging
+- **File Sandbox**: Operations restricted to repo root
+- **No Shell Exec**: Agents can't run arbitrary commands

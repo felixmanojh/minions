@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from llm_gc.config import load_models, get_num_ctx_override
+from llm_gc.config import get_configs, get_num_ctx_override, ModelConfig
 from llm_gc.orchestrator.base import ChatTurn, OllamaClient, persist_transcript, render_turn
 from llm_gc.tools import (
     FileReader,
@@ -55,7 +55,7 @@ class MinionExecutor:
         self.task = task
         self.preset = preset
         self.session_dir = Path(session_dir)
-        self.models = load_models(config_path, preset=preset)
+        self.configs = get_configs(preset=preset, path=config_path)
         self.model_override = model
         # Priority: CLI arg > ENV var > config default
         self.num_ctx_override = num_ctx or get_num_ctx_override()
@@ -71,15 +71,12 @@ class MinionExecutor:
 
     async def run(self) -> dict:
         """Execute single-shot task and return result."""
-        # Get model config (use implementer by default)
-        config = self.models.get("implementer")
-        if not config:
-            available = ", ".join(self.models.keys()) or "<empty>"
-            raise KeyError(f"No 'implementer' config found. Available: {available}")
+        # Get minion model config
+        config = self.configs.minion
 
         # Override model if specified
         if self.model_override:
-            config = config.__class__(
+            config = ModelConfig(
                 model=self.model_override,
                 temperature=config.temperature,
                 max_tokens=config.max_tokens,
@@ -87,7 +84,7 @@ class MinionExecutor:
             )
         # Override just num_ctx if specified without model override
         elif self.num_ctx_override:
-            config = config.__class__(
+            config = ModelConfig(
                 model=config.model,
                 temperature=config.temperature,
                 max_tokens=config.max_tokens,

@@ -33,6 +33,8 @@ def cmd_polish(args):
     """Auto-apply docstrings, types, comments."""
     from scripts.m_polish import run_polish
 
+    max_retries = 0 if args.no_retry else args.max_retries
+
     result = asyncio.run(run_polish(
         files=[Path(f) for f in args.files],
         task=args.task,
@@ -40,6 +42,10 @@ def cmd_polish(args):
         num_ctx=args.num_ctx,
         backup=args.backup,
         dry_run=args.dry_run,
+        no_lint=args.no_lint,
+        no_validate=args.no_validate,
+        lint_cmd=args.lint_cmd,
+        max_retries=max_retries,
     ))
 
     if args.json:
@@ -51,6 +57,8 @@ def cmd_sweep(args):
     """Scan codebase and batch-fix."""
     from scripts.m_sweep import run_sweep
 
+    max_retries = 0 if args.no_retry else args.max_retries
+
     result = asyncio.run(run_sweep(
         directory=Path(args.directory),
         task=args.task,
@@ -59,6 +67,10 @@ def cmd_sweep(args):
         preset=args.preset,
         num_ctx=args.num_ctx,
         backup=args.backup,
+        no_lint=args.no_lint,
+        no_validate=args.no_validate,
+        lint_cmd=args.lint_cmd,
+        max_retries=max_retries,
     ))
 
     if args.json:
@@ -153,7 +165,13 @@ def cmd_swarm(args):
 
 
 def cmd_setup(args):
-    """Verify Ollama and models."""
+    """Interactive setup or status check."""
+    if args.interactive:
+        from llm_gc.setup import run_setup
+        result = run_setup()
+        return 0 if result.get("success") else 1
+
+    # Quick status check (default)
     import subprocess
 
     print("Checking Ollama...")
@@ -178,14 +196,18 @@ def cmd_setup(args):
         return 1
 
     print("\nChecking config...")
-    from llm_gc.config import load_models
+    from llm_gc.config import get_configs
     try:
-        models = load_models()
-        print(f"✓ Config loaded: {len(models)} roles")
-        for role, cfg in models.items():
-            print(f"  - {role}: {cfg.model} (ctx: {cfg.num_ctx})")
+        configs = get_configs()
+        print(f"✓ Minion: {configs.minion.model} (ctx: {configs.minion.num_ctx})")
+        if configs.validator:
+            print(f"✓ Validator: {configs.validator.model}")
+        else:
+            print("✓ Validator: same as minion")
+        print(f"✓ Max retries: {configs.validation.max_retries}")
     except Exception as e:
         print(f"✗ Config error: {e}")
+        print("\nRun 'minions setup --interactive' to configure")
         return 1
 
     print("\n✓ Setup OK")
@@ -218,10 +240,15 @@ def main():
     p_polish = subparsers.add_parser("polish", help="Auto-apply docstrings/types")
     p_polish.add_argument("files", nargs="+", help="Files to polish")
     p_polish.add_argument("--task", default="all", help="Task: docstrings, types, headers, all")
-    p_polish.add_argument("--preset", choices=["lite", "medium", "large"])
+    p_polish.add_argument("--preset", choices=["lite", "standard", "expert"])
     p_polish.add_argument("--num-ctx", type=int, help="Context window size")
     p_polish.add_argument("--backup", action="store_true", help="Create .bak files")
     p_polish.add_argument("--dry-run", action="store_true", help="Preview only")
+    p_polish.add_argument("--no-lint", action="store_true", help="Skip AST syntax check")
+    p_polish.add_argument("--no-validate", action="store_true", help="Skip LLM validation")
+    p_polish.add_argument("--lint-cmd", type=str, help="Custom linter (e.g., 'ruff check')")
+    p_polish.add_argument("--max-retries", type=int, default=1, help="Max retry attempts")
+    p_polish.add_argument("--no-retry", action="store_true", help="Disable retry on failure")
     p_polish.set_defaults(func=cmd_polish)
 
     # sweep
@@ -230,9 +257,14 @@ def main():
     p_sweep.add_argument("--task", default="all", choices=["docstrings", "types", "headers", "all"])
     p_sweep.add_argument("--apply", action="store_true", help="Apply fixes")
     p_sweep.add_argument("--max-lines", type=int, default=500, help="Skip files over N lines")
-    p_sweep.add_argument("--preset", choices=["lite", "medium", "large"])
+    p_sweep.add_argument("--preset", choices=["lite", "standard", "expert"])
     p_sweep.add_argument("--num-ctx", type=int, help="Context window size")
     p_sweep.add_argument("--backup", action="store_true", help="Create .bak files")
+    p_sweep.add_argument("--no-lint", action="store_true", help="Skip AST syntax check")
+    p_sweep.add_argument("--no-validate", action="store_true", help="Skip LLM validation")
+    p_sweep.add_argument("--lint-cmd", type=str, help="Custom linter (e.g., 'ruff check')")
+    p_sweep.add_argument("--max-retries", type=int, default=1, help="Max retry attempts")
+    p_sweep.add_argument("--no-retry", action="store_true", help="Disable retry on failure")
     p_sweep.set_defaults(func=cmd_sweep)
 
     # patch
@@ -240,7 +272,7 @@ def main():
     p_patch.add_argument("task", help="Task description")
     p_patch.add_argument("--target", action="append", help="Target file(s)")
     p_patch.add_argument("--read", action="append", help="Context file(s)")
-    p_patch.add_argument("--preset", choices=["lite", "medium", "large"])
+    p_patch.add_argument("--preset", choices=["lite", "standard", "expert"])
     p_patch.add_argument("--config", type=Path, help="Config file")
     p_patch.add_argument("--sessions", default="sessions", help="Session dir")
     p_patch.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -250,7 +282,7 @@ def main():
     p_chat = subparsers.add_parser("chat", help="Single-shot minion task")
     p_chat.add_argument("task", help="Task description")
     p_chat.add_argument("--read", action="append", help="Context file(s)")
-    p_chat.add_argument("--preset", choices=["lite", "medium", "large"])
+    p_chat.add_argument("--preset", choices=["lite", "standard", "expert"])
     p_chat.add_argument("--num-ctx", type=int, help="Context window size")
     p_chat.add_argument("--config", type=Path, help="Config file")
     p_chat.add_argument("--sessions", default="sessions", help="Session dir")
@@ -268,6 +300,7 @@ def main():
 
     # setup
     p_setup = subparsers.add_parser("setup", help="Verify Ollama and models")
+    p_setup.add_argument("-i", "--interactive", action="store_true", help="Interactive model selection")
     p_setup.set_defaults(func=cmd_setup)
 
     # metrics

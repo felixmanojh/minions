@@ -9,7 +9,7 @@ from datetime import datetime
 import uuid
 from pathlib import Path
 
-from llm_gc.config import load_models
+from llm_gc.config import get_configs, ModelConfig
 from llm_gc.orchestrator.base import ChatTurn, OllamaClient, persist_transcript, render_turn
 from llm_gc.parsers import FileChange, parse_file_blocks
 from llm_gc.tools import (
@@ -61,7 +61,7 @@ class PatchExecutor:
         self.task = task
         self.preset = preset
         self.session_dir = Path(session_dir)
-        self.models = load_models(config_path, preset=preset)
+        self.configs = get_configs(preset=preset, path=config_path)
         self.model_override = model
         self.client = OllamaClient()
         self.repo_root = Path(repo_root or Path.cwd()).resolve()
@@ -76,18 +76,16 @@ class PatchExecutor:
 
     async def run(self) -> dict:
         """Execute single-shot patch task and return result with diff."""
-        # Get model config (use patcher role, fallback to implementer)
-        config = self.models.get("patcher") or self.models.get("implementer")
-        if not config:
-            available = ", ".join(self.models.keys()) or "<empty>"
-            raise KeyError(f"No 'patcher' or 'implementer' config found. Available: {available}")
+        # Get minion model config
+        config = self.configs.minion
 
         # Override model if specified
         if self.model_override:
-            config = config.__class__(
+            config = ModelConfig(
                 model=self.model_override,
                 temperature=config.temperature,
                 max_tokens=config.max_tokens,
+                num_ctx=config.num_ctx,
             )
 
         # Build prompt and execute
