@@ -1,8 +1,9 @@
 ---
 name: minion-patch
 description: >
-  Generate patches for files (<500 lines) using local models.
-  Patches require manual review before applying.
+  Use when a mechanical code change needs review before applying.
+  Delegates grunt work to local LLMs — saves cloud tokens. Generates patch for review.
+  Use for changes that might need adjustment. Files must be <500 lines.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 

@@ -1,8 +1,9 @@
 ---
 name: minion-swarm
 description: >
-  Run same patch on multiple files in parallel.
-  Use for batch operations across codebase.
+  PROACTIVELY USE when same mechanical change is needed on multiple files (add headers, comments, etc.).
+  Delegates parallel grunt work to local LLMs — saves cloud tokens. Runs in parallel for speed.
+  Use instead of repetitive manual edits. Files must be <500 lines each.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 

@@ -1,8 +1,9 @@
 ---
 name: minion-polish
 description: >
-  Auto-apply docstrings, type hints, and cleanup to files (<500 lines).
-  Invoke after completing implementation. Changes are applied directly.
+  PROACTIVELY USE after implementing code to add docstrings, type hints, cleanup.
+  Delegates grunt work to local LLMs — saves cloud tokens. Files must be <500 lines.
+  Use for mechanical polish, not logic changes. Changes are auto-applied.
 allowed-tools: Bash, Read
 ---
 

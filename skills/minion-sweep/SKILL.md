@@ -1,8 +1,9 @@
 ---
 name: minion-sweep
 description: >
-  Scan codebase for missing docstrings/types and batch-fix.
-  Two phases: discover what needs work, then apply fixes.
+  PROACTIVELY USE when user asks to add docstrings/types across multiple files or a directory.
+  Delegates bulk grunt work to local LLMs — saves cloud tokens. Two phases: discover, then apply.
+  Use instead of manually editing many files. Files must be <500 lines each.
 allowed-tools: Bash, Read, Glob
 ---
 
