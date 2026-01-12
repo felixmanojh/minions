@@ -105,15 +105,83 @@ Not:
 Syntax error on line 42
 ```
 
-## Failure Handling
+## Failure Handling with Retry Loop
 
-On validation failure:
-- Do NOT apply changes to file
-- Report failure with validator's reasoning
-- Log full context for debugging
-- Continue to next file (don't abort batch)
+On validation failure, attempt one retry with error feedback:
 
-No retry - fail fast, let user see why.
+```
+┌──────────┐     ┌───────────┐     ┌───────────┐
+│ Generate │ ──▶ │ AST Lint  │ ──▶ │ Validate  │
+│ (Model A)│     │(tree-sitter)│   │ (Model B) │
+└──────────┘     └───────────┘     └───────────┘
+      ▲                                  │
+      │         ┌─────────────┐          │
+      └─────────│ Retry with  │◀─────────┘ (on FAIL)
+                │ error context│
+                └─────────────┘
+                       │
+                       ▼ (still fails after retry)
+                ┌─────────────┐
+                │ Notify      │
+                │ Claude Code │
+                └─────────────┘
+```
+
+### Retry Flow
+
+1. **First attempt fails** → Send error + original + generated to generator
+2. **Retry prompt:**
+   ```
+   Your previous output had an error:
+   {validator_reason}
+
+   Original file:
+   ```python
+   {original}
+   ```
+
+   Your output (with error):
+   ```python
+   {generated}
+   ```
+
+   Fix the issue and output the corrected file:
+   ```
+3. **Retry succeeds** → Apply and continue
+4. **Retry fails** → Log failure, notify Claude Code, continue to next file
+
+### Notification to Claude Code
+
+When retry fails, return structured error for Claude Code to handle:
+
+```json
+{
+  "status": "failed",
+  "file": "src/foo.py",
+  "attempts": 2,
+  "last_error": "Logic changed: removed error handling in try block",
+  "suggestion": "Manual review required - minion unable to complete task"
+}
+```
+
+Claude Code can then:
+- Show the error to user
+- Offer to do the task itself
+- Skip and continue
+
+### Config for Retry
+
+```yaml
+validation:
+  max_retries: 1        # 0 = no retry, 1 = one retry (default)
+  notify_on_fail: true  # return structured error for Claude Code
+```
+
+```bash
+# Override via CLI
+python scripts/minions.py polish src/foo.py --max-retries 2
+python scripts/minions.py polish src/foo.py --no-retry  # same as --max-retries 0
+```
 
 ## Logging
 
@@ -365,20 +433,23 @@ If any step fails, skip to next file with error logged.
 4. Add `llm_gc/validator.py` with LLM validation logic
 5. Add `get_error_context()` for LLM-friendly error reporting
 6. Add failure logging to `~/.minions/failures.log`
+7. Add retry loop logic with error feedback to generator
 
 ### Phase 2: Integration
-7. Update `polish_file()` flow: generate → AST lint → LLM validate → apply
-8. Update `sweep` to use validation
-9. Add `--no-validate`, `--no-lint`, `--validator-model`, `--lint-cmd` flags
+8. Update `polish_file()` flow: generate → AST lint → LLM validate → retry → apply
+9. Update `sweep` to use validation
+10. Add `--no-validate`, `--no-lint`, `--validator-model`, `--lint-cmd` flags
+11. Add `--max-retries`, `--no-retry` flags
+12. Return structured JSON for Claude Code on final failure
 
 ### Phase 3: Interactive Setup
-10. Rewrite `setup` command with interactive model selection
-11. Add model download flow with progress
-12. Save user choices to `models.yaml`
+13. Rewrite `setup` command with interactive model selection
+14. Add model download flow with progress
+15. Save user choices to `models.yaml`
 
 ### Phase 4: Documentation
-13. Update SKILL.md docs with new flags
-14. Update README with validation explanation
+16. Update SKILL.md docs with new flags
+17. Update README with validation explanation
 
 ### Dependencies to Add
 ```
@@ -404,14 +475,12 @@ tree-sitter-javascript>=0.21.0  # for JS support
 | AST only (`--no-validate`) | Quick iterations, trusted prompts |
 | None (`--no-lint --no-validate`) | Debugging, testing minion output |
 
-## Future Enhancements (Not in Scope)
+## Future Enhancements (Not in Scope for v1)
 
 From research, interesting patterns we could add later:
 
-1. **Retry loop** (from Aider) - On validation failure, send error back to generator for fix attempt. Adds complexity but improves success rate.
+1. **Self-consistency** (from LLM-as-judge research) - Run validation 3x, require consensus. Overkill for our use case.
 
-2. **Self-consistency** (from LLM-as-judge research) - Run validation 3x, require consensus. Overkill for our use case.
+2. **Fine-tuned judge** (from JudgeLM) - Train a specialized model for code validation. Too much effort for now.
 
-3. **Fine-tuned judge** (from JudgeLM) - Train a specialized model for code validation. Too much effort for now.
-
-Keeping scope minimal for v1.
+3. **Multi-file awareness** - Validator checks cross-file dependencies. Complex but useful for refactors.
