@@ -452,11 +452,352 @@ If any step fails, skip to next file with error logged.
 17. Update README with validation explanation
 
 ### Dependencies to Add
+```toml
+# pyproject.toml
+[project]
+dependencies = [
+    "tree-sitter>=0.23.0",
+    "tree-sitter-python>=0.23.0",
+    "tree-sitter-javascript>=0.23.0",
+    "grep-ast>=0.3.0",        # Aider's TreeContext for error context
+    "rich>=13.0.0",           # Pretty CLI for interactive setup
+    "pydantic>=2.0.0",        # Validation models
+]
 ```
-tree-sitter>=0.21.0
-tree-sitter-python>=0.21.0
-tree-sitter-javascript>=0.21.0  # for JS support
+
+---
+
+## Implementation Patterns (from Research)
+
+### 1. AST Linting with Tree-Sitter (from Aider `linter.py`)
+
+```python
+# llm_gc/linter.py
+from grep_ast import filename_to_lang
+from grep_ast.tsl import get_parser
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class LintResult:
+    text: str
+    lines: list[int]  # Line numbers with errors
+
+def basic_lint(fname: str, code: str) -> Optional[LintResult]:
+    """Use tree-sitter to find syntax errors."""
+    lang = filename_to_lang(fname)
+    if not lang:
+        return None
+
+    parser = get_parser(lang)
+    tree = parser.parse(bytes(code, "utf-8"))
+    errors = traverse_tree(tree.root_node)
+
+    if not errors:
+        return None
+    return LintResult(text="", lines=errors)
+
+def traverse_tree(node) -> list[int]:
+    """Find ERROR nodes in AST."""
+    errors = []
+    if node.type == "ERROR" or node.is_missing:
+        errors.append(node.start_point[0])
+    for child in node.children:
+        errors += traverse_tree(child)
+    return errors
 ```
+
+### 2. Error Context with TreeContext (from Aider)
+
+```python
+# llm_gc/linter.py (continued)
+from grep_ast import TreeContext
+
+def get_error_context(fname: str, code: str, line_nums: list[int]) -> str:
+    """Get context around error lines, marked with █."""
+    context = TreeContext(
+        fname,
+        code,
+        color=False,
+        line_number=True,
+        child_context=False,
+        last_line=False,
+        margin=0,
+        mark_lois=True,  # Mark lines of interest
+        loi_pad=3,       # 3 lines of context
+        show_top_of_file_parent_scope=False,
+    )
+
+    context.add_lines_of_interest(set(line_nums))
+    context.add_context()
+
+    s = "s" if len(line_nums) > 1 else ""
+    output = f"## See relevant line{s} below marked with █.\n\n"
+    output += fname + ":\n"
+    output += context.format()
+    return output
+```
+
+### 3. LLM Validator (from quotient-ai/judges)
+
+```python
+# llm_gc/validator.py
+from dataclasses import dataclass
+from typing import Optional, Literal
+from pydantic import BaseModel
+
+class ValidationResult(BaseModel):
+    """Result of validation check."""
+    passed: bool
+    reason: Optional[str] = None
+    check_type: Literal["syntax", "task", "preservation"] = "task"
+
+@dataclass
+class CodeValidator:
+    """LLM-based code validator."""
+    client: "OllamaClient"
+    config: "ModelConfig"
+
+    def validate(self, original: str, modified: str, task: str) -> ValidationResult:
+        prompt = self._build_prompt(original, modified, task)
+        response, _ = self.client.prompt(prompt, self.config, role="validator")
+        return self._parse_response(response)
+
+    def _parse_response(self, response: str) -> ValidationResult:
+        response = response.strip()
+        if response.startswith("PASS"):
+            return ValidationResult(passed=True)
+        elif response.startswith("FAIL:"):
+            reason = response[5:].strip()
+            return ValidationResult(passed=False, reason=reason)
+        else:
+            return ValidationResult(passed=False, reason=f"Invalid response: {response}")
+```
+
+### 4. Retry Loop (from LangGraph Reflection)
+
+```python
+# llm_gc/validator.py (continued)
+@dataclass
+class RetryConfig:
+    max_retries: int = 1
+    notify_on_fail: bool = True
+
+class GenerateValidateLoop:
+    def __init__(self, generator, validator, config: RetryConfig):
+        self.generator = generator
+        self.validator = validator
+        self.config = config
+
+    def run(self, original: str, task: str) -> dict:
+        """Generate → Validate → Retry loop."""
+        attempt = 0
+        last_error = None
+        generated = None
+
+        while attempt <= self.config.max_retries:
+            if attempt == 0:
+                generated = self.generator.generate(original, task)
+            else:
+                # Retry with error feedback
+                generated = self.generator.retry_with_error(
+                    original, generated, last_error
+                )
+
+            result = self.validator.validate(original, generated, task)
+
+            if result.passed:
+                return {"status": "success", "output": generated, "attempts": attempt + 1}
+
+            last_error = result.reason
+            attempt += 1
+
+        # All retries failed - notify Claude Code
+        return {
+            "status": "failed",
+            "attempts": attempt,
+            "last_error": last_error,
+            "suggestion": "Manual review required - minion unable to complete task"
+        }
+```
+
+### 5. Interactive CLI Setup (with Rich)
+
+```python
+# scripts/minions.py setup command
+from rich.console import Console
+from rich.table import Table
+from rich.prompt import Prompt, IntPrompt
+from rich.progress import Progress
+
+console = Console()
+
+CODING_MODELS = [
+    ("qwen2.5-coder:3b", 2, None),
+    ("qwen2.5-coder:7b", 4.5, "generator"),
+    ("codellama:7b", 4, "validator"),
+    ("starcoder2:7b", 4.5, None),
+    ("codegemma:7b", 5, None),
+    ("codestral:22b", 12, None),
+    ("qwen2.5-coder:14b", 9, None),
+    ("qwen2.5-coder:32b", 20, None),
+    ("starcoder2:15b", 10, None),
+    ("deepseek-coder:33b", 20, None),
+    ("codellama:34b", 20, None),
+]
+
+def setup_standard():
+    console.print("\n[bold]── Standard Setup ──[/]\n")
+
+    table = Table(title="Available Coding Models")
+    table.add_column("#", style="cyan")
+    table.add_column("Model", style="green")
+    table.add_column("Size", justify="right")
+    table.add_column("Rec", style="yellow")
+
+    for i, (name, size, rec) in enumerate(CODING_MODELS, 1):
+        rec_str = f"★ {rec}" if rec else ""
+        table.add_row(str(i), name, f"~{size}GB", rec_str)
+
+    console.print(table)
+
+    gen_idx = IntPrompt.ask("\nSelect generator", default=2)
+    val_idx = IntPrompt.ask("Select validator", default=3)
+
+    gen_model = CODING_MODELS[gen_idx - 1][0]
+    val_model = CODING_MODELS[val_idx - 1][0]
+
+    pull_models_with_progress([gen_model, val_model])
+    return {"minion": gen_model, "validator": val_model}
+
+def pull_models_with_progress(models: list[str]):
+    """Pull models with Rich progress bar."""
+    import subprocess
+    for model in models:
+        console.print(f"[cyan]Pulling {model}...[/]")
+        subprocess.run(["ollama", "pull", model], check=True)
+        console.print(f"[green]✓[/] {model}")
+```
+
+### 6. Custom Linter Integration (from Aider)
+
+```python
+# llm_gc/linter.py (continued)
+import subprocess
+import re
+
+def run_external_linter(cmd: str, filepath: str) -> Optional[LintResult]:
+    """Run user's linter command (ruff, eslint, etc.)."""
+    try:
+        result = subprocess.run(
+            f"{cmd} {filepath}",
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode == 0:
+            return None
+
+        errors = result.stdout + result.stderr
+        linenums = find_line_numbers(errors, filepath)
+
+        return LintResult(
+            text=f"## Running: {cmd} {filepath}\n\n{errors}",
+            lines=linenums
+        )
+    except OSError as err:
+        return LintResult(text=f"Linter failed: {err}", lines=[])
+
+def find_line_numbers(text: str, fname: str) -> list[int]:
+    """Extract line numbers from linter output."""
+    pattern = re.compile(rf"{re.escape(fname)}:(\d+)")
+    return [int(m.group(1)) for m in pattern.finditer(text)]
+```
+
+### 7. Failure Logging
+
+```python
+# llm_gc/logging.py
+from pathlib import Path
+from datetime import datetime
+import json
+
+FAILURES_LOG = Path.home() / ".minions" / "failures.log"
+SESSIONS_DIR = Path.home() / ".minions" / "sessions"
+
+def log_failure(file: str, reason: str, session_data: dict = None):
+    """Log failure to both quick log and full session."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Quick reference log
+    FAILURES_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with open(FAILURES_LOG, "a") as f:
+        f.write(f"{timestamp} | {file} | FAIL | {reason}\n")
+
+    # Full session data
+    if session_data:
+        SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+        session_file = SESSIONS_DIR / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(session_file, "w") as f:
+            json.dump(session_data, f, indent=2)
+```
+
+### 8. Complete Flow
+
+```python
+# llm_gc/polish.py - Putting it all together
+def polish_file(filepath: str, task: str, config: dict) -> dict:
+    """Generate → AST Lint → LLM Validate → Retry → Apply"""
+    original = Path(filepath).read_text()
+
+    # 1. Generate
+    generated = generator.generate(original, task)
+
+    # 2. AST Lint (fast fail)
+    if not config.get("no_lint"):
+        lint_result = basic_lint(filepath, generated)
+        if lint_result:
+            error_ctx = get_error_context(filepath, generated, lint_result.lines)
+            generated = generator.retry_with_error(original, generated, error_ctx)
+            lint_result = basic_lint(filepath, generated)
+            if lint_result:
+                log_failure(filepath, "Syntax errors persist", {...})
+                return {"status": "failed", "error": "Syntax errors persist"}
+
+    # 3. Custom Lint (if specified)
+    if lint_cmd := config.get("lint_cmd"):
+        ext_result = run_external_linter(lint_cmd, filepath)
+        if ext_result:
+            log_failure(filepath, ext_result.text, {...})
+            return {"status": "failed", "error": ext_result.text}
+
+    # 4. LLM Validate with retry loop
+    if not config.get("no_validate"):
+        loop = GenerateValidateLoop(generator, validator, RetryConfig())
+        result = loop.run(original, task)
+        if result["status"] == "failed":
+            log_failure(filepath, result["last_error"], {...})
+            return result
+        generated = result["output"]
+
+    # 5. Apply
+    Path(filepath).write_text(generated)
+    return {"status": "success", "file": filepath}
+```
+
+---
+
+## Code Pattern Sources
+
+| Component | Source Project | Key Feature |
+|-----------|---------------|-------------|
+| Tree-sitter lint | [Aider](https://github.com/Aider-AI/aider) | Fast AST-based syntax check |
+| TreeContext | [grep-ast](https://github.com/paul-gauthier/grep-ast) | LLM-friendly error context |
+| Validator class | [quotient-ai/judges](https://github.com/quotient-ai/judges) | Clean abstraction |
+| Retry loop | [LangGraph](https://github.com/langchain-ai/langgraph) | Reflection pattern |
+| Rich CLI | [Rich](https://github.com/Textualize/rich) | Professional UX |
+| Code extraction | [OpenEvals](https://github.com/langchain-ai/openevals) | Parse LLM output |
 
 ## Trade-offs
 
