@@ -23,47 +23,27 @@ These tasks don't need Claude's intelligence. They need a worker who follows ins
 
 ## The Vision
 
-### The Intelligence Pyramid
-
 ```
-                              ▲
-                              │ Intelligence
-                              │ Cost
-                        ┌─────┴─────┐
-                        │ FRONTIER  │  ← Claude Code lives here
-                        │  Opus/GPT-4│    (Reasoning, strategy)
-                        ├───────────┤
-                        │  MID-TIER │
-                        │ Sonnet/4o │
-                        ├───────────┤
-                        │ EFFICIENT │
-                        │Haiku/Mini │
-                        ├───────────┤
-                        │   SMALL   │  ← Minions live here
-                        │  7b-14b   │    (Mechanical execution)
-                        ├───────────┤
-                        │   TINY    │
-                        │  1.5b-3b  │
-                        └─────┬─────┘
-                              │
-            ┌─────────────────┼─────────────────┐
-            │                 │                 │
-         LOCAL               │              CLOUD
-       (Private)             │            (Cheap)
-            │                 │                 │
-      ┌─────┴─────┐          │          ┌─────┴─────┐
-      │  Ollama   │          │          │OpenRouter │
-      │ LM Studio │          │          │ 4o-mini   │
-      │ llama.cpp │          │          │  Groq     │
-      └───────────┘          │          └───────────┘
-                              │
-                    Both are valid.
-                    Pick based on needs.
+┌─────────────────────────────────────────────────────────────┐
+│                    Claude Code (Cloud)                      │
+│              Planning • Strategy • Reasoning                │
+│                 Powerful • Expensive • Remote               │
+└─────────────────────────────┬───────────────────────────────┘
+                              │ delegates mechanical tasks
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Minions (Local)                          │
+│         Docstrings • Type hints • Repetitive fixes         │
+│              Free • Private • On your hardware              │
+└─────────────────────────────────────────────────────────────┘
 ```
-
-**The insight:** The pyramid has two halves — local and cloud. Minions operate at the bottom of the pyramid on either side. The top is reserved for reasoning.
 
 Like Gru and his Minions: Gru handles the master plan, Minions handle the grunt work.
+
+**Why local?**
+- **Free** — No API costs, run as much as you want
+- **Private** — Your code never leaves your machine
+- **Fast** — No network latency, parallel execution
 
 **Claude always classifies the task. Minions never self-select work.**
 
@@ -95,8 +75,8 @@ Claude time saved: ~18 minutes
 ## Target Users
 
 1. **Claude Code power users** — developers who use Claude Code daily and want to preserve intelligence for hard problems
-2. **Privacy-conscious teams** — want code processing to stay local (Ollama)
-3. **Cost-conscious developers** — want cheap execution via OpenRouter/GPT-4o-mini
+2. **Privacy-conscious teams** — code never leaves your machine
+3. **Cost-conscious developers** — local execution is free
 4. **High-velocity teams** — need to maintain large codebases without burning senior-engineer time on junior-engineer work
 
 ---
@@ -171,21 +151,12 @@ minions metrics                                 # View session stats
 
 ### Presets
 
-**Local (Ollama):**
-
 | Preset | Minion | Validator | Hardware | Use Case |
 |--------|--------|-----------|----------|----------|
 | lite | 7b | same | 8GB RAM | Fast, minimal hardware |
 | standard | 7b | 7b | 8GB RAM | Balanced safety |
 | expert | 14b | 14b | 16GB RAM | Better accuracy |
-
-**Cloud (Planned):**
-
-| Preset | Minion | Validator | Cost | Use Case |
-|--------|--------|-----------|------|----------|
-| openrouter | free tier | same | $0 | Zero cost, variable availability |
-| gpt-mini | gpt-4o-mini | same | ~$0.15/1M | No GPU required |
-| haiku | claude-3-haiku | same | ~$0.25/1M | Anthropic ecosystem |
+| custom | any | any | varies | Your choice via config |
 
 Users can override any model via `MINIONS_MODEL` env var or `models.yaml`.
 
@@ -220,13 +191,7 @@ Users can override any model via `MINIONS_MODEL` env var or `models.yaml`.
 - [ ] Custom model creation (`ollama create minion-tuned`)
 - [ ] Per-codebase adaptation
 
-### Phase 4: Cloud Backends
-- [ ] OpenRouter integration (free tiers)
-- [ ] OpenAI API (GPT-4o-mini)
-- [ ] Anthropic API (Haiku)
-- [ ] Backend abstraction layer
-
-### Phase 5: Expansion
+### Phase 4: Expansion
 - [ ] More task types (tests, refactoring patterns)
 - [ ] Multi-language support
 - [ ] Team sharing of tuned models

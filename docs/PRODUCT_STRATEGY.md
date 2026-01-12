@@ -6,9 +6,9 @@
 
 **Market:** Developer tools for AI-assisted coding
 **Segment:** Claude Code users who want to optimize their AI usage
-**Positioning:** The cheap execution layer for Claude Code
+**Positioning:** The local workforce for Claude Code
 
-**Key insight:** The split isn't local vs cloud. It's reasoning vs execution, expensive vs cheap.
+**Key insight:** Cloud thinks. Local executes. Your code stays private, your wallet stays full.
 
 ### The Landscape
 
@@ -76,19 +76,6 @@
 - Pattern detection improves success rate
 
 **Risk:** Users don't care about meta-analysis, just want it to work.
-
----
-
-### Bet 5: Cloud Backends Expand Reach
-
-**Hypothesis:** Supporting cheap cloud APIs (OpenRouter, GPT-4o-mini) unlocks users without GPUs.
-
-**Evidence needed:**
-- Users without GPUs adopt minions via cloud presets
-- OpenRouter free tiers see meaningful usage
-- Cost per task stays under $0.01
-
-**Risk:** Cloud latency/cost makes local always preferable for power users.
 
 ---
 
