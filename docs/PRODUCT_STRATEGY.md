@@ -195,15 +195,10 @@
 | 2026-01-12 | Use 7b for validation (not 1.5b) | 1.5b inconsistent on large files |
 | 2026-01-12 | Increase max_tokens to 8192 | Prevent truncation on real files |
 | 2026-01-12 | Claude does insights, not minions | Fits intelligence separation |
-
----
-
-## Open Questions
-
-1. **Should we support non-Claude hosts?** (Cursor, Windsurf, etc.)
-2. **How do we measure "Claude minutes saved" accurately?**
-3. **Is there a freemium/paid model here, or pure open source?**
-4. **Should insights be automatic or on-demand?**
+| 2026-01-12 | Pure open source, no paid tier | Using open source models; better to build together |
+| 2026-01-12 | Insights on-demand, not automatic | User controls when to analyze |
+| 2026-01-12 | Non-Claude hosts later | Prove it works with Claude Code first |
+| 2026-01-12 | Metric: tasks delegated, not time saved | Can't measure counterfactual "Claude minutes" |
 
 ---
 

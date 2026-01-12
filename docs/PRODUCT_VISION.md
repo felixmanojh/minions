@@ -51,10 +51,9 @@ Like Gru and his Minions: Gru handles the master plan, Minions handle the grunt 
 
 ## A Concrete Example
 
-**Before:**
+**Task:**
 ```
 42 Python files missing docstrings
-Estimated Claude time: 15-20 minutes of back-and-forth
 ```
 
 **Command:**
@@ -67,7 +66,7 @@ Estimated Claude time: 15-20 minutes of back-and-forth
 ✓ 39 files: docstrings added and validated
 ✗ 3 files: rejected (logged for review)
 Time: 4 minutes (local, parallel)
-Claude time saved: ~18 minutes
+Claude tasks avoided: 42 mechanical file edits
 ```
 
 ---
@@ -166,7 +165,7 @@ Users can override any model via `MINIONS_MODEL` env var or `models.yaml`.
 
 | Metric | What It Measures |
 |--------|------------------|
-| **Claude minutes saved per session** | Time not spent on mechanical work |
+| **Tasks delegated per session** | Mechanical work offloaded from Claude |
 | **Files safely modified per session** | Throughput of validated changes |
 | **Validation success rate** | % of minion output that passes |
 | **User trust score** | % of changes applied without manual review |
