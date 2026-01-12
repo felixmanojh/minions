@@ -1,0 +1,215 @@
+# Minions: Product Vision
+
+## One-Liner
+
+**Delegate mechanical code work to local models. Save cloud intelligence for real reasoning.**
+
+---
+
+## The Real Problem
+
+It's not about tokens. It's about **wasted intelligence**.
+
+Claude Code is powerful. But developers burn that power on mechanical tasks:
+- Adding docstrings to 50 files
+- Adding type hints across a module
+- Formatting, comments, headers
+
+These tasks don't need Claude's intelligence. They need a worker who follows instructions.
+
+**The cost isn't money. It's misallocated reasoning.**
+
+---
+
+## The Vision
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Claude Code (Cloud)                      │
+│              Planning • Strategy • Reasoning                │
+│                    "The Senior Engineer"                    │
+└─────────────────────────────┬───────────────────────────────┘
+                              │ delegates mechanical tasks
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Minions (Local)                          │
+│         Docstrings • Type hints • Repetitive fixes         │
+│              Free • Private • On your hardware              │
+│                    "The Reliable Junior"                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Like Gru and his Minions: Gru handles the master plan, Minions handle the grunt work.
+
+**Claude always classifies the task. Minions never self-select work.**
+
+---
+
+## A Concrete Example
+
+**Before:**
+```
+42 Python files missing docstrings
+Estimated Claude time: 15-20 minutes of back-and-forth
+```
+
+**Command:**
+```bash
+/minion-sweep src/ --task docstrings --apply
+```
+
+**Result:**
+```
+✓ 39 files: docstrings added and validated
+✗ 3 files: rejected (logged for review)
+Time: 4 minutes (local, parallel)
+Claude time saved: ~18 minutes
+```
+
+---
+
+## Target Users
+
+1. **Claude Code power users** — developers who use Claude Code daily and want to preserve intelligence for hard problems
+2. **Privacy-conscious teams** — want code processing to stay local
+3. **High-velocity teams** — need to maintain large codebases without burning senior-engineer time on junior-engineer work
+
+---
+
+## Core Principles
+
+### 1. Know Your Limits
+7b models are limited. We don't pretend otherwise.
+- Mechanical tasks only (no reasoning, no logic changes)
+- Files under 500 lines
+- Simple, repetitive operations
+
+### 2. Validate Before Apply
+Minions make mistakes. Every change goes through:
+```
+Generate → AST Lint → LLM Validate → Apply
+```
+If validation fails, retry with error feedback. If still fails, don't apply.
+
+### 3. Cloud for Thinking, Local for Doing
+- **Cloud (Claude):** Classification, analysis, decisions, complex reasoning
+- **Local (Minions):** Execution of mechanical tasks
+
+### 4. Transparent Failures
+Log everything. When minions fail:
+- Save the session (original, generated, error)
+- Let Claude Code analyze patterns
+- Surface insights to improve over time
+
+---
+
+## The Product
+
+### Skills (Claude Code Integration)
+
+**Current:**
+
+| Skill | Purpose |
+|-------|---------|
+| `/minion-polish` | Auto-apply docstrings, types to files |
+| `/minion-sweep` | Scan codebase, batch-fix missing docs |
+| `/minion-swarm` | Same change across multiple files |
+| `/minion-patch` | Generate patch for manual review |
+| `/minion-setup` | Verify Ollama and models |
+| `/minion-metrics` | View session stats |
+
+**Planned (Phase 2):**
+
+| Skill | Purpose |
+|-------|---------|
+| `/minion-insights` | Claude analyzes minion performance |
+
+### CLI (Standalone)
+
+```bash
+minions polish src/foo.py --task docstrings   # Auto-apply polish
+minions sweep src/ --task all --apply          # Batch fix codebase
+minions patch "Add header" --target src/foo.py # Generate patch
+minions swarm "Add header" src/*.py            # Parallel patches
+minions setup                                   # Verify Ollama/models
+minions metrics                                 # View session stats
+```
+
+### Presets
+
+| Preset | Minion | Validator | Use Case |
+|--------|--------|-----------|----------|
+| lite | 7b | same | Fast, less safe |
+| standard | 7b | 7b | Balanced |
+| expert | 14b | 33b | Large files, complex |
+
+---
+
+## Success Metrics
+
+| Metric | What It Measures |
+|--------|------------------|
+| **Claude minutes saved per session** | Time not spent on mechanical work |
+| **Files safely modified per session** | Throughput of validated changes |
+| **Validation success rate** | % of minion output that passes |
+| **User trust score** | % of changes applied without manual review |
+
+---
+
+## Roadmap
+
+### Phase 1: Foundation (Done)
+- [x] Generate → Validate → Retry pipeline
+- [x] Polish, Sweep, Patch, Swarm commands (CLI)
+- [x] Session logging to `~/.minions/`
+- [x] Claude Code skills (polish, sweep, swarm, patch, setup, metrics)
+
+### Phase 2: Insights
+- [ ] `/minion-insights` skill — Claude analyzes logs
+- [ ] Success/failure pattern detection
+- [ ] Preset upgrade suggestions
+
+### Phase 3: Learning Loop
+- [ ] Export successful pairs for fine-tuning
+- [ ] Custom model creation (`ollama create minion-tuned`)
+- [ ] Per-codebase adaptation
+
+### Phase 4: Expansion
+- [ ] More task types (tests, refactoring patterns)
+- [ ] Multi-language support
+- [ ] Team sharing of tuned models
+
+---
+
+## What Minions Will Never Do
+
+- **Classify work as mechanical** — Claude decides what to delegate
+- **Reason about code logic** — that's Claude's job
+- **Make architectural decisions** — that's Claude's job
+- **Handle security-sensitive code** — too risky for 7b
+- **Replace Claude Code** — they're the workforce, not the brain
+
+---
+
+## The Strategic Insight
+
+This product is not about saving tokens.
+
+**It's about preserving intelligence for leverage.**
+
+We're proposing a future where:
+- Cloud models act like senior engineers
+- Local models act like reliable juniors
+- The human stays in control
+
+The division of labor mirrors how effective teams already work.
+
+---
+
+## The Pitch
+
+> "Stop wasting Claude's intelligence on docstrings. Delegate grunt work to local minions. Keep the reasoning for what matters."
+
+---
+
+*Last updated: 2026-01-12*
