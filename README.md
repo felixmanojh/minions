@@ -4,29 +4,27 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ollama](https://img.shields.io/badge/Ollama-local%20LLMs-purple.svg)](https://ollama.ai)
 
-Local LLM minions for mechanical code tasks — offload trivial patches to your local Ollama models.
+Local LLM minions for mechanical code tasks — offload grunt work to your local Ollama models.
 
 ## What Minions Can Do
 
 | Task | Works? |
 |------|--------|
-| Add comments | Yes |
 | Add docstrings | Yes |
 | Add type hints | Yes |
+| Add comments | Yes |
 | Rename variable (simple cases) | Yes |
 | Files up to ~500 lines | Yes (32K context) |
 | Anything requiring understanding | No |
 
-**Be honest:** 7b models are limited. Minions are good for repetitive mechanical tasks. No reasoning, no logic.
+**Be honest:** 7b models are limited. Minions handle repetitive mechanical tasks. No reasoning, no logic.
 
 ## Limits
 
 | Constraint | Limit |
 |------------|-------|
-| File size | <500 lines (32K context window) |
+| File size | <500 lines (32K context, configurable) |
 | Task type | Mechanical only (no logic, no reasoning) |
-| Context | MUST pass `--read` or model hallucinates |
-| Review | ALWAYS review patches before applying |
 
 ## Installation
 
@@ -56,53 +54,75 @@ cp -r skills/* ~/.claude/skills/
 
 ## Usage
 
-### Single File Patch
+### Polish (Auto-Apply)
+
+Add docstrings, types, comments — changes applied directly:
 
 ```bash
-source .venv/bin/activate && python scripts/m3_patch.py \
-  "Add comment '# TODO: refactor' at top" \
+# Add all polish (docstrings + types + headers)
+python scripts/m_polish.py src/foo.py --task all --json
+
+# Just docstrings
+python scripts/m_polish.py src/foo.py --task docstrings --json
+
+# Multiple files
+python scripts/m_polish.py src/foo.py src/bar.py --task types --json
+
+# Dry run (preview without applying)
+python scripts/m_polish.py src/foo.py --task all --dry-run
+```
+
+### Sweep (Codebase Scan)
+
+Find and fix files missing documentation:
+
+```bash
+# Discover what needs work
+python scripts/m_sweep.py src/ --task docstrings --json
+
+# Apply fixes to all discovered files
+python scripts/m_sweep.py src/ --task docstrings --apply --json
+
+# Full sweep with backups
+python scripts/m_sweep.py . --task all --apply --backup --json
+```
+
+### Patch (Manual Review)
+
+Generate patches for review before applying:
+
+```bash
+python scripts/m3_patch.py "Add TODO comment at top" \
   --repo-root . \
-  --read src/small_file.py \
-  --target src/small_file.py \
+  --read src/file.py \
+  --target src/file.py \
   --json
-```
 
-**IMPORTANT:** Always pass `--read` with the target file. Without it, the model hallucinates.
-
-### Multiple Files (Swarm)
-
-```bash
-source .venv/bin/activate && python scripts/swarm.py \
-  --workers 2 \
-  --json \
-  patch "Add comment '# Minions' at top" \
-  small_file_1.py small_file_2.py small_file_3.py
-```
-
-### Applying Patches
-
-Always review and dry-run first:
-
-```bash
-# Review
-cat sessions/*.patch
-
-# Dry-run
+# Review and apply
 patch -p1 --dry-run < sessions/*.patch
-
-# Apply if clean
 patch -p1 < sessions/*.patch
+```
+
+### Swarm (Batch Patch)
+
+Same patch on multiple files in parallel:
+
+```bash
+python scripts/swarm.py \
+  --workers 2 \
+  patch "Add header comment" \
+  file1.py file2.py file3.py
 ```
 
 ## Skills
 
 | Skill | Purpose |
 |-------|---------|
-| `/minion-setup` | Check Ollama, models, dependencies |
-| `/minion-patch` | Generate patch for single file (<500 lines) |
-| `/minion-swarm` | Batch patch multiple files in parallel |
 | `/minion-polish` | Auto-apply docstrings, types, cleanup |
 | `/minion-sweep` | Scan codebase and batch-fix missing docs |
+| `/minion-patch` | Generate patch for single file |
+| `/minion-swarm` | Batch patch multiple files in parallel |
+| `/minion-setup` | Check Ollama, models, dependencies |
 | `/minion-apply` | Review and apply patches safely |
 | `/minion-models` | Pull/list Ollama models |
 | `/minion-metrics` | View session stats |
@@ -120,21 +140,19 @@ presets:
       model: qwen2.5-coder:7b
       temperature: 0.2
       max_tokens: 1024
-      num_ctx: 32768  # 32K context for larger files
+      num_ctx: 32768  # 32K context
 ```
 
 ### Context Window Size
 
-Control context size (tradeoff: larger = more file capacity, but slower):
+Larger context = more file capacity, but slower:
 
 ```bash
 # CLI flag (highest priority)
-python scripts/m1_chat.py "task" --num-ctx 65536
+python scripts/m_polish.py file.py --task all --num-ctx 65536
 
 # Environment variable
 export MINIONS_NUM_CTX=65536
-
-# Or edit models.yaml (lowest priority)
 ```
 
 | Size | Use Case | Speed |
@@ -151,20 +169,18 @@ export OLLAMA_BASE_URL="http://ollama.my-lab:11434"
 
 ## When NOT to Use Minions
 
-- Files >500 lines
+- Files >500 lines (increase `--num-ctx` for larger)
 - Changes requiring understanding of code logic
 - Security-sensitive code
-- When correctness matters more than speed
 - Complex refactoring
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| Empty patch | File too big or already has change |
-| Wrong file contents | Missing `--read` flag |
-| Truncated output | File >500 lines, increase `num_ctx` |
-| Patch doesn't apply | File changed - re-run |
+| Syntax error after polish | Auto-reverted, minion made mistake |
+| Empty patch | File unchanged or too big |
+| Truncated output | Increase `--num-ctx` |
 
 ## License
 
