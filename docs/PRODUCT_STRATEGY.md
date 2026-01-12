@@ -79,6 +79,39 @@
 
 ---
 
+### Bet 5: Arena Becomes Model Discovery Platform
+
+**Hypothesis:** Helping users find the right local model for their code creates unique value no one else provides.
+
+**The problem:**
+- 100+ models on Ollama, users don't know which to pick
+- Generic benchmarks (MMLU, HumanEval) don't reflect real tasks
+- No personalized "which model for MY code?" exists
+
+**The solution:** Arena — A/B testing downloaded models on user's actual code.
+
+```
+Minions run battles → Generate data → Claude interprets → Recommends preset
+```
+
+**Two strategic paths:**
+
+| Path | Description | Outcome |
+|------|-------------|---------|
+| **Tool** | Feature within metrics skill | Solves user's immediate "which model?" problem |
+| **Platform** | Aggregate anonymous arena results | Community-driven model rankings for real coding tasks |
+
+**Evidence needed:**
+- Users run arena before choosing presets
+- Arena results correlate with long-term success rate
+- Community data reveals model strengths (e.g., "14b wins on complex files")
+
+**Risk:** Users just pick a model and never benchmark.
+
+**Opportunity:** If we aggregate arena data, we become the source of truth for "which local model actually works for coding" — a position no one holds today.
+
+---
+
 ## Go-To-Market
 
 ### Phase 1: Seed (Now)
