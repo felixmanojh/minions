@@ -1,103 +1,53 @@
 ---
 name: minion-metrics
 description: >
-  View analytics and performance data for your local minions. Shows success rates,
-  latency, quality scores, and health indicators. Use to understand how your minions
-  are performing and identify issues.
+  View analytics and performance data for minions.
+  Shows success rates, latency, and session history.
 allowed-tools: Bash, Read
 ---
 
 # Minion Metrics
 
-View performance analytics for your local minion squad. See success rates, latency, quality scores, and identify what's working vs what needs attention.
+View performance analytics for minion operations.
 
-## When to use
-
-- Check how your minions are performing overall
-- Investigate failures or slow response times
-- Compare performance across different models
-- Export data for deeper analysis
-
-## Usage
-
-### Dashboard (default)
-
-Show the main metrics dashboard with health indicators:
+## Command
 
 ```bash
-source .venv/bin/activate && python scripts/metrics.py
+source .venv/bin/activate && python scripts/minions.py --json metrics
 ```
 
-This displays:
+## What It Shows
+
 - Total tasks and success rate
 - Today's activity
-- Performance by role (implementer, patcher, etc.)
-- Latency stats and fastest model
-- Retry rate
-- Quality metrics (patch success rate)
+- Performance by model
+- Latency stats
+- Recent sessions
 
-### Filter by criteria
+## Example Output
 
-View only failed tasks:
-```bash
-source .venv/bin/activate && python scripts/metrics.py --failures
+```
+=== Minion Metrics ===
+Total tasks: 47
+Success rate: 91%
+Today: 12 tasks
+
+By model:
+  qwen2.5-coder:7b: 35 tasks, avg 4.2s
+  deepseek-coder:1.3b: 12 tasks, avg 2.1s
+
+Recent:
+  20260112-143012: polish src/foo.py ✓
+  20260112-142856: sweep llm_gc/ ✓
 ```
 
-Filter by role:
+## Options
+
 ```bash
-source .venv/bin/activate && python scripts/metrics.py --role implementer
+# Limit events
+python scripts/minions.py --json metrics --limit 20
 ```
 
-Today's events only:
-```bash
-source .venv/bin/activate && python scripts/metrics.py --today
-```
+## Data Location
 
-Filter by task type:
-```bash
-source .venv/bin/activate && python scripts/metrics.py --type patch
-```
-
-### Understanding metrics
-
-Show the metric reference guide with thresholds:
-```bash
-source .venv/bin/activate && python scripts/metrics.py --help-metrics
-```
-
-This explains what each metric means and what good/okay/bad looks like.
-
-### Export data
-
-Export to CSV for external analysis:
-```bash
-source .venv/bin/activate && python scripts/metrics.py --export csv
-```
-
-## Health Indicators
-
-The dashboard shows colored dots for each metric:
-- **Green (●)**: Good - metric is healthy
-- **Yellow (●)**: Okay - metric needs attention
-- **Red (●)**: Bad - metric needs investigation
-
-| Metric | Good | Okay | Bad |
-|--------|------|------|-----|
-| Success Rate | >90% | 70-90% | <70% |
-| Latency | <2s | 2-5s | >5s |
-| Retry Rate | <10% | 10-25% | >25% |
-| Patch Success | >85% | 60-85% | <60% |
-
-## Data Storage
-
-Metrics are stored at `~/.minions/metrics.json` and collected automatically when minions run. The file is capped at 1000 events with automatic pruning.
-
-## Troubleshooting
-
-**No metrics recorded yet**: Run some minion tasks first (patch, swarm, chat).
-
-**Metrics file missing**: Check `~/.minions/` directory exists.
-
-**High failure rate**: Check Ollama is running, models are available.
-
-**High latency**: Use smaller models, check system resources.
+Metrics stored at `~/.minions/metrics.json`

@@ -1,7 +1,7 @@
 {
   "name": "minions",
-  "version": "0.1.0",
-  "description": "Local LLM minions for Claude Code — summon a squad of small models to discuss, review, and patch your code privately and token-free.",
+  "version": "0.2.0",
+  "description": "Local LLM minions for Claude Code — offload grunt work (docstrings, types, comments) to local Ollama models.",
   "author": {
     "name": "Felix Manoj",
     "email": "felixmanojh@users.noreply.github.com"
@@ -12,17 +12,19 @@
   "keywords": [
     "local-llm",
     "ollama",
-    "multi-agent",
-    "code-review",
-    "patch-generation",
+    "docstrings",
+    "type-hints",
+    "code-polish",
     "offline"
   ],
-  "commands": "./commands",
   "skills": [
-    "./skills/minion-huddle",
-    "./skills/minion-fix",
-    "./skills/minion-queue",
+    "./skills/minion-polish",
+    "./skills/minion-sweep",
+    "./skills/minion-patch",
+    "./skills/minion-swarm",
     "./skills/minion-setup",
-    "./skills/minion-swarm"
+    "./skills/minion-apply",
+    "./skills/minion-models",
+    "./skills/minion-metrics"
   ]
 }
