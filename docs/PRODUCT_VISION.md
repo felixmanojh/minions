@@ -79,10 +79,19 @@ Claude time saved: ~18 minutes
 ## Core Principles
 
 ### 1. Know Your Limits
-7b models are limited. We don't pretend otherwise.
+Local models are for mechanical work, not reasoning — regardless of size.
 - Mechanical tasks only (no reasoning, no logic changes)
-- Files under 500 lines
+- File size depends on model context window
 - Simple, repetitive operations
+
+**Model choice is yours:**
+| Hardware | Recommended | Context |
+|----------|-------------|---------|
+| 8GB RAM | 7b | 32K |
+| 16GB RAM | 14b | 64K |
+| 32GB+ RAM | 32b/70b | 128K |
+
+Bigger models = better accuracy, but the task type stays mechanical.
 
 ### 2. Validate Before Apply
 Minions make mistakes. Every change goes through:
@@ -137,11 +146,14 @@ minions metrics                                 # View session stats
 
 ### Presets
 
-| Preset | Minion | Validator | Use Case |
-|--------|--------|-----------|----------|
-| lite | 7b | same | Fast, less safe |
-| standard | 7b | 7b | Balanced |
-| expert | 14b | 33b | Large files, complex |
+| Preset | Minion | Validator | Hardware | Use Case |
+|--------|--------|-----------|----------|----------|
+| lite | 7b | same | 8GB RAM | Fast, minimal hardware |
+| standard | 7b | 7b | 8GB RAM | Balanced safety |
+| expert | 14b | 14b | 16GB RAM | Better accuracy |
+| custom | any | any | varies | Your choice via config |
+
+Users can override any model via `MINIONS_MODEL` env var or `models.yaml`.
 
 ---
 
@@ -186,7 +198,7 @@ minions metrics                                 # View session stats
 - **Classify work as mechanical** — Claude decides what to delegate
 - **Reason about code logic** — that's Claude's job
 - **Make architectural decisions** — that's Claude's job
-- **Handle security-sensitive code** — too risky for 7b
+- **Handle security-sensitive code** — local models shouldn't touch auth, crypto, etc.
 - **Replace Claude Code** — they're the workforce, not the brain
 
 ---

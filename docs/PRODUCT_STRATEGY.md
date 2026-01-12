@@ -32,7 +32,9 @@
 - Users apply changes without manual review
 - Repeat usage after first week
 
-**Risk:** Users don't trust 7b models at all, even with validation.
+**Risk:** Users don't trust local models at all, even with validation.
+
+**Mitigation:** Model-agnostic design — users choose 7b/14b/32b/70b based on their hardware and trust level.
 
 ---
 
@@ -176,9 +178,9 @@
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| 7b models too unreliable | Medium | High | Validation catches errors; suggest 14b |
+| Small models unreliable | Medium | High | Validation catches errors; users can upgrade to 14b/32b |
 | Claude Code skills deprecated | Low | High | CLI works standalone |
-| Users don't trust local models | Medium | Medium | Transparent logging, insights |
+| Users don't trust local models | Medium | Medium | Transparent logging, insights, model choice |
 | Ollama changes API | Low | Medium | Abstract client layer |
 | Better competitor emerges | Medium | Medium | Move fast, build community |
 
