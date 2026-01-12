@@ -78,11 +78,7 @@ def available_presets(path: str | Path | None = None) -> list[str]:
 
 
 def get_num_ctx_override() -> int | None:
-    """Get num_ctx from environment variable if set.
-
-    Returns:
-        num_ctx value from MINIONS_NUM_CTX env var, or None if not set.
-    """
+    """Get num_ctx from environment variable if set."""
     env_val = os.environ.get("MINIONS_NUM_CTX")
     if env_val:
         try:
@@ -92,4 +88,32 @@ def get_num_ctx_override() -> int | None:
     return None
 
 
-__all__ = ["ModelConfig", "load_models", "available_presets", "get_num_ctx_override"]
+def get_minion_config(preset: str | None = None) -> ModelConfig:
+    """Get the single minion model config.
+
+    Supports environment overrides:
+        MINIONS_MODEL - override model name
+        MINIONS_NUM_CTX - override context window
+
+    Returns:
+        ModelConfig for the minion.
+    """
+    configs = load_models(preset=preset)
+    config = configs.get("minion") or next(iter(configs.values()))
+
+    # Apply environment overrides
+    model_override = os.environ.get("MINIONS_MODEL")
+    ctx_override = get_num_ctx_override()
+
+    if model_override or ctx_override:
+        return ModelConfig(
+            model=model_override or config.model,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+            num_ctx=ctx_override or config.num_ctx,
+            seed=config.seed,
+        )
+    return config
+
+
+__all__ = ["ModelConfig", "load_models", "available_presets", "get_num_ctx_override", "get_minion_config"]

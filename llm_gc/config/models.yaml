@@ -1,134 +1,32 @@
 # Minions Model Configuration
 #
-# Minions auto assigns the right model per task:
-#   • Implementer → code generation and refactors
-#   • Reviewer    → correctness, bugs, and safety checks
-#   • Patcher     → surgical edits and FIM
+# Minions are one-shot: send task → get result
+# Single model handles all tasks (docstrings, types, patches)
 #
-# Presets:
-#   lite   - 5GB, single model for smaller projects
-#   medium - 13GB, specialized model per role (recommended)
-#   large  - 35GB, best for large repo refactoring
-#
-# Override per role via environment:
-#   MINIONS_IMPLEMENTER_MODEL=codegemma:7b
-#   MINIONS_REVIEWER_MODEL=mistral:7b
-#   MINIONS_PATCHER_MODEL=starcoder2:7b
+# Override via environment:
+#   MINIONS_MODEL=qwen2.5-coder:14b
+#   MINIONS_NUM_CTX=65536
 
 preset: medium
 
-# ─────────────────────────────────────────────────────────────
-# Role Definitions
-# ─────────────────────────────────────────────────────────────
-roles:
-  implementer:
-    primary: qwen2.5-coder:7b
-    fallbacks:
-      - qwen2.5-coder:7b
-
-  reviewer:
-    primary: deepseek-coder:1.3b
-    fallbacks:
-      - qwen2.5-coder:7b
-
-  patcher:
-    primary: starcoder2:7b
-    fallbacks:
-      - qwen2.5-coder:7b
-
-# ─────────────────────────────────────────────────────────────
-# Routing Rules (keyword matching, first match wins)
-# ─────────────────────────────────────────────────────────────
-routing:
-  # Patcher: surgical edits, FIM, minimal diffs
-  patcher_keywords:
-    - patch
-    - diff
-    - edit
-    - surgical
-    - fim
-    - apply
-    - insert
-    - replace
-
-  # Reviewer: validation, bugs, security
-  reviewer_keywords:
-    - review
-    - bug
-    - debug
-    - issue
-    - vulnerability
-    - security
-    - correctness
-    - audit
-    - validate
-    - check
-
-  # Implementer: code generation (default)
-  implementer_keywords:
-    - implement
-    - build
-    - create
-    - generate
-    - refactor
-    - rewrite
-    - optimize
-    - tests
-    - document
-    - add
-    - write
-
-# ─────────────────────────────────────────────────────────────
-# Preset Overrides (for backwards compatibility)
-# ─────────────────────────────────────────────────────────────
 presets:
   lite:
-    implementer:
-      model: qwen2.5-coder:7b
+    minion:
+      model: qwen2.5-coder:1.5b
       temperature: 0.2
       max_tokens: 1024
-      num_ctx: 32768      # qwen2.5-coder supports 128K, using 32K for memory efficiency
-    reviewer:
-      model: qwen2.5-coder:7b
-      temperature: 0.1
-      max_tokens: 800
-      num_ctx: 32768
-    patcher:
-      model: qwen2.5-coder:7b
-      temperature: 0.1
-      max_tokens: 1024
-      num_ctx: 32768
+      num_ctx: 16384
 
   medium:
-    implementer:
+    minion:
       model: qwen2.5-coder:7b
       temperature: 0.2
-      max_tokens: 1024
-      num_ctx: 32768      # qwen2.5-coder supports 128K, using 32K for memory efficiency
-    reviewer:
-      model: deepseek-coder:1.3b
-      temperature: 0.1
-      max_tokens: 800
-      num_ctx: 16384      # deepseek-coder:1.3b supports 16K
-    patcher:
-      model: qwen2.5-coder:7b
-      temperature: 0.1
       max_tokens: 1024
       num_ctx: 32768
 
   large:
-    implementer:
+    minion:
       model: qwen2.5-coder:14b
       temperature: 0.2
       max_tokens: 2048
-      num_ctx: 65536      # qwen2.5-coder supports 128K, using 64K for large tasks
-    reviewer:
-      model: deepseek-coder:33b
-      temperature: 0.1
-      max_tokens: 1500
-      num_ctx: 32768
-    patcher:
-      model: starcoder2:15b
-      temperature: 0.1
-      max_tokens: 2048
-      num_ctx: 32768
+      num_ctx: 65536
