@@ -25,21 +25,27 @@ These tasks don't need Claude's intelligence. They need a worker who follows ins
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Claude Code (Cloud)                      │
-│              Planning • Strategy • Reasoning                │
-│                    "The Senior Engineer"                    │
+│                 Reasoning Layer (Expensive)                 │
+│                       Claude Code                           │
+│              Planning • Strategy • Decisions                │
 └─────────────────────────────┬───────────────────────────────┘
                               │ delegates mechanical tasks
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Minions (Local)                          │
+│                Execution Layer (Cheap/Free)                 │
 │         Docstrings • Type hints • Repetitive fixes         │
-│              Free • Private • On your hardware              │
-│                    "The Reliable Junior"                    │
+│                                                             │
+│   Local             │   Cloud (Cheap)                       │
+│   ───────────────   │   ─────────────────────               │
+│   Ollama            │   OpenRouter (free tiers)             │
+│   LM Studio         │   GPT-4o-mini (~$0.15/1M)             │
+│   llama.cpp         │   Haiku, Groq, Together.ai            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 Like Gru and his Minions: Gru handles the master plan, Minions handle the grunt work.
+
+**The split isn't local vs cloud. It's reasoning vs execution, expensive vs cheap.**
 
 **Claude always classifies the task. Minions never self-select work.**
 
@@ -71,8 +77,9 @@ Claude time saved: ~18 minutes
 ## Target Users
 
 1. **Claude Code power users** — developers who use Claude Code daily and want to preserve intelligence for hard problems
-2. **Privacy-conscious teams** — want code processing to stay local
-3. **High-velocity teams** — need to maintain large codebases without burning senior-engineer time on junior-engineer work
+2. **Privacy-conscious teams** — want code processing to stay local (Ollama)
+3. **Cost-conscious developers** — want cheap execution via OpenRouter/GPT-4o-mini
+4. **High-velocity teams** — need to maintain large codebases without burning senior-engineer time on junior-engineer work
 
 ---
 
@@ -146,12 +153,21 @@ minions metrics                                 # View session stats
 
 ### Presets
 
+**Local (Ollama):**
+
 | Preset | Minion | Validator | Hardware | Use Case |
 |--------|--------|-----------|----------|----------|
 | lite | 7b | same | 8GB RAM | Fast, minimal hardware |
 | standard | 7b | 7b | 8GB RAM | Balanced safety |
 | expert | 14b | 14b | 16GB RAM | Better accuracy |
-| custom | any | any | varies | Your choice via config |
+
+**Cloud (Planned):**
+
+| Preset | Minion | Validator | Cost | Use Case |
+|--------|--------|-----------|------|----------|
+| openrouter | free tier | same | $0 | Zero cost, variable availability |
+| gpt-mini | gpt-4o-mini | same | ~$0.15/1M | No GPU required |
+| haiku | claude-3-haiku | same | ~$0.25/1M | Anthropic ecosystem |
 
 Users can override any model via `MINIONS_MODEL` env var or `models.yaml`.
 
@@ -186,7 +202,13 @@ Users can override any model via `MINIONS_MODEL` env var or `models.yaml`.
 - [ ] Custom model creation (`ollama create minion-tuned`)
 - [ ] Per-codebase adaptation
 
-### Phase 4: Expansion
+### Phase 4: Cloud Backends
+- [ ] OpenRouter integration (free tiers)
+- [ ] OpenAI API (GPT-4o-mini)
+- [ ] Anthropic API (Haiku)
+- [ ] Backend abstraction layer
+
+### Phase 5: Expansion
 - [ ] More task types (tests, refactoring patterns)
 - [ ] Multi-language support
 - [ ] Team sharing of tuned models
