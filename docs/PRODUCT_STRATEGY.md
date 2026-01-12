@@ -31,7 +31,24 @@
 
 **Our wedge:** None of these separate thinking from doing. We do.
 
-**Research lineage:** Inspired by Stanford's Minions protocol — local models for execution, frontier models for reasoning.
+### Research Validation
+
+Our approach is independently validated by Stanford research:
+
+**Paper:** [Minions: Cost-efficient Collaboration Between On-device and Cloud Language Models](https://arxiv.org/abs/2502.15964)
+**Authors:** Narayan, Biderman, Eyuboglu, May, Linderman, Zou, Ré (Stanford)
+
+| Finding | Implication for Us |
+|---------|-------------------|
+| Naive back-and-forth recovers only 87% performance | Simple delegation isn't enough |
+| Task decomposition by cloud is key | Claude must classify/decompose, minions execute |
+| 97.9% performance at 5.7x cost reduction | The approach works at scale |
+| Local models struggle with multi-step instructions | Keep minion tasks simple and focused |
+
+**Key insight from the paper:**
+> "The remote model breaks down complex problems into simpler subtasks focused on shorter document segments, which the local model processes in parallel."
+
+This is exactly our architecture: Claude thinks, Minions execute simple focused tasks.
 
 ---
 

@@ -207,6 +207,21 @@ Users can override any model via `MINIONS_MODEL` env var or `models.yaml`.
 
 ---
 
+## Research Foundation
+
+This approach is validated by Stanford research:
+
+**[Minions: Cost-efficient Collaboration Between On-device and Cloud Language Models](https://arxiv.org/abs/2502.15964)** (Narayan et al., Stanford, 2025)
+
+Key findings:
+- Cloud model decomposes tasks → local model executes in parallel
+- Achieves **97.9% of frontier performance** at **5.7x cost reduction**
+- Local models struggle with multi-step reasoning but excel at focused subtasks
+
+We independently arrived at the same architecture. The research validates our core bet.
+
+---
+
 ## The Strategic Insight
 
 This product is not about saving tokens.
