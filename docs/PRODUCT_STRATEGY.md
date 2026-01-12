@@ -12,14 +12,26 @@
 
 ### The Landscape
 
-| Player | Approach | Gap |
-|--------|----------|-----|
-| Claude Code | Cloud-only, does everything | Burns intelligence on grunt work |
-| Cursor/Copilot | Cloud-first, local cache | No delegation model |
-| Ollama | Local models, no orchestration | Raw capability, no workflow |
-| Aider | Multi-model, git-focused | No validation pipeline |
+| Player | Philosophy | Strength | Gap We Fill |
+|--------|------------|----------|-------------|
+| **Claude Code** | "AI drives, you supervise" | Autonomous agent, terminal-first, MCP extensible | Burns intelligence on mechanical tasks |
+| **Cursor** | "You drive, AI assists" | Familiar IDE, repo-wide context, multi-model | No delegation, cloud-only compute |
+| **Copilot** | "AI pair programmer" | Inline completions, ubiquitous, low friction | No orchestration, no autonomy |
+| **Ollama** | "Infrastructure for local LLMs" | 100% local, thinking mode, API for scripting | Raw capability, no workflow layer |
+| **Aider** | "AI pair in terminal with git" | Git-native, multi-file edits, conversation flow | No validation, changes applied directly |
+
+### Why We Win
+
+| Against | Our Advantage |
+|---------|---------------|
+| Claude Code | We handle grunt work locally so Claude can focus on reasoning |
+| Cursor/Copilot | We're free, private, and designed for mechanical bulk tasks |
+| Ollama | We're the workflow layer that makes raw models useful for coding |
+| Aider | We validate before applying — Generate → Validate → Retry |
 
 **Our wedge:** None of these separate thinking from doing. We do.
+
+**Research lineage:** Inspired by Stanford's Minions protocol — local models for execution, frontier models for reasoning.
 
 ---
 
@@ -174,6 +186,31 @@ Minions run battles → Generate data → Claude interprets → Recommends prese
 3. **P1:** Timing metrics — show actual time saved
 4. **P2:** TypeScript support — second language
 5. **P2:** Export for fine-tuning — training data generation
+
+---
+
+## Competitive Lessons
+
+What we can learn from each player's approach:
+
+| From | Lesson | Apply To Minions |
+|------|--------|------------------|
+| **Claude Code** | Plan mode + permission prompts build trust | Our validation step serves same purpose |
+| **Cursor** | Diff review before apply is essential UX | Always show what will change before applying |
+| **Copilot** | Low friction drives adoption | Skills should "just work" without config |
+| **Ollama** | Thinking mode (`<think>` sections) aids debugging | Surface minion reasoning in failure logs |
+| **Aider** | Git commits per change enable rollback | Consider auto-commit option for each polish |
+
+### Trust Mechanisms Comparison
+
+| Tool | Trust Mechanism | Minions Equivalent |
+|------|-----------------|-------------------|
+| Claude Code | Plan mode, permission prompts | Validation step, `--dry-run` |
+| Cursor | Diff review, line-by-line accept | Patch preview before apply |
+| Aider | Git commit per change, easy revert | Session logs, `--backup` flag |
+| Ollama Agent | Read-only mode, undo history | `--dry-run`, failure logs |
+
+**Key insight:** Every successful tool has a trust/safety mechanism. Our Generate → Validate → Retry pipeline is our version.
 
 ---
 
