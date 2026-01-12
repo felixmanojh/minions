@@ -15,14 +15,14 @@
 
 ### Weaknesses
 
-| Weakness | Evidence |
-|----------|----------|
-| **Validation failures common** | 6 failures today: "no code block", "validation failed" |
-| **Validator unreliable** | Same file (linter.py) failed multiple times |
-| **No retry feedback loop** | Failures don't surface actionable fixes to user |
-| **Skill overlap unclear** | polish vs sweep vs swarm - when to use which? |
-| **File size limit** | <500 lines hard limit, no graceful degradation |
-| **Python only** | No TypeScript/Go/Rust support yet |
+| Weakness | Evidence | Root Cause Hypothesis |
+|----------|----------|----------------------|
+| **Validation failures common** | 6 failures today: "no code block", "validation failed" | Prompt ambiguity or model truncation at context limit |
+| **Validator unreliable** | Same file (linter.py) failed multiple times | Non-deterministic output; AST edge cases in complex files |
+| **No retry feedback loop** | Failures don't surface actionable fixes to user | Error messages designed for logs, not humans |
+| **Skill overlap unclear** | polish vs sweep vs swarm - when to use which? | Skills evolved organically without clear decision tree |
+| **File size limit** | <500 lines hard limit, no graceful degradation | Context window constraints; no chunking strategy |
+| **Python only** | No TypeScript/Go/Rust support yet | Started with Python; AST tooling is Python-first |
 
 ### Opportunities
 
@@ -33,7 +33,12 @@
 | **TypeScript support** | Second most common language for web devs |
 | **Chunking for large files** | Split >500 line files, process pieces |
 | **Preset auto-upgrade** | Detect when 7b fails often, suggest 14b |
-| **Community presets** | Users share working model configs |
+
+### Differentiator
+
+| Opportunity | Why It's a Moat |
+|-------------|-----------------|
+| **Community presets** | Users share working model configs → network effects. Hard to replicate if we build the sharing infrastructure first. |
 
 ### Threats
 
@@ -45,12 +50,48 @@
 | **Ollama breaks API** | Low | Abstract client layer exists |
 | **Faster competitor** | Medium | Move fast, ship insights |
 
-### Priority Actions
+---
 
-1. **P0:** Fix "no code block" errors - investigate why minion output lacks code
-2. **P1:** Better validation error messages - what specifically failed?
-3. **P1:** Add skill selection guide - "use polish for single file, sweep for directories, swarm for parallel"
-4. **P2:** `/minion-insights` skill - surface patterns from failure logs
+## Key Insight
+
+> **Minions is not failing because of model intelligence. It is failing at the seams between steps.**
+
+Seams are fixable. Trust gaps are fixable. Workflow clarity is fixable.
+
+If the core idea were wrong, the SWOT would look very different.
+
+---
+
+## Priority Backlog
+
+### P0: Trust Repairs
+
+| Task | Why |
+|------|-----|
+| Fix missing code block output | Most common failure mode |
+| Make validation errors explicit and human-readable | Users can't fix what they can't understand |
+
+### P1: Clarity and Learning
+
+| Task | Why |
+|------|-----|
+| Skill selection guide | "use polish for single file, sweep for directories, swarm for parallel" |
+| Retry feedback loop | Surface actionable fixes, not just "failed" |
+| Failure classification | Categorize errors to find patterns |
+
+### P2: Capability Expansion
+
+| Task | Why |
+|------|-----|
+| `/minion-insights` skill | Claude analyzes failure logs |
+| Chunking for large files | Remove 500-line hard limit |
+| TypeScript support | Second language, bigger audience |
+
+---
+
+## Kill Signal
+
+> If validation failure rate does not drop below 70% after P0 fixes, reassess the validation approach entirely.
 
 ---
 
