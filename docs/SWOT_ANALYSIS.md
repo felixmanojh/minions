@@ -62,43 +62,9 @@ If the core idea were wrong, the SWOT would look very different.
 
 ---
 
-## Priority Backlog
+## Backlog
 
-*Informed by [Stanford Minions research](https://arxiv.org/abs/2502.15964)*
-
-### P0: Trust Repairs (Research-Validated)
-
-| Task | Why | Research Backing |
-|------|-----|------------------|
-| Fix missing code block output | Most common failure mode | — |
-| Simplify prompts to single-step | Multi-step confuses local models | 56% improvement from decomposition |
-| Chunk large files before processing | Long context degrades performance | 30% drop on long contexts |
-| Enforce 7B minimum model size | Small models ineffective | "Models <3B not effective" |
-
-### P1: Architecture Alignment
-
-| Task | Why | Research Backing |
-|------|-----|------------------|
-| Formalize Decompose → Execute → Aggregate loop | Match proven architecture | Core of MinionS protocol |
-| Claude decomposes, minions execute single tasks | Task decomposition is key | 56% improvement |
-| Add structured output schemas to prompts | Cleaner parallel processing | MinionS uses Pydantic schemas |
-| Make max_retries configurable per task type | Control iteration depth | `max_rounds` parameter |
-
-### P2: Clarity and Learning
-
-| Task | Why |
-|------|-----|
-| Skill selection guide | "use polish for single file, sweep for directories, swarm for parallel" |
-| Retry feedback loop | Surface actionable fixes, not just "failed" |
-| Failure classification | Categorize errors to find patterns |
-
-### P3: Capability Expansion
-
-| Task | Why |
-|------|-----|
-| `/minion-insights` skill | Claude analyzes failure logs |
-| Arena for model selection | A/B test models on user's code |
-| TypeScript support | Second language, bigger audience |
+See **[BACKLOG.md](BACKLOG.md)** for the full prioritized backlog informed by Stanford research.
 
 ---
 

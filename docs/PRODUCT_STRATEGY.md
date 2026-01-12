@@ -185,32 +185,9 @@ Minions run battles → Generate data → Claude interprets → Recommends prese
 
 ---
 
-## Prioritization Framework
+## Backlog
 
-### What We Build Next
-
-| Priority | Criteria |
-|----------|----------|
-| **P0** | Blocks core loop (validation broken, can't install) |
-| **P1** | Research-validated improvements (Stanford findings) |
-| **P2** | Expands capability (new tasks, languages) |
-| **P3** | Nice to have (UI, dashboards) |
-
-### Research-Informed Queue
-
-*Based on [Stanford Minions findings](https://arxiv.org/abs/2502.15964)*
-
-| Priority | Task | Research Backing |
-|----------|------|------------------|
-| **P0** | Fix missing code block output | Most common failure |
-| **P0** | Simplify prompts to single-step | 56% improvement from decomposition |
-| **P0** | Chunk large files before processing | 30% drop on long contexts |
-| **P1** | Enforce 7B minimum (remove 1.5b validator) | "Models <3B not effective" |
-| **P1** | Formalize Decompose → Execute → Aggregate | Core MinionS architecture |
-| **P1** | Add structured output schemas | MinionS uses Pydantic |
-| **P2** | Arena for model A/B testing | Help users pick right model |
-| **P2** | TypeScript support | Second language |
-| **P3** | Export for fine-tuning | Training data generation |
+See **[BACKLOG.md](BACKLOG.md)** for the full prioritized backlog.
 
 ---
 
