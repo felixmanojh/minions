@@ -23,29 +23,47 @@ These tasks don't need Claude's intelligence. They need a worker who follows ins
 
 ## The Vision
 
+### The Intelligence Pyramid
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                 Reasoning Layer (Expensive)                 │
-│                       Claude Code                           │
-│              Planning • Strategy • Decisions                │
-└─────────────────────────────┬───────────────────────────────┘
-                              │ delegates mechanical tasks
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                Execution Layer (Cheap/Free)                 │
-│         Docstrings • Type hints • Repetitive fixes         │
-│                                                             │
-│   Local             │   Cloud (Cheap)                       │
-│   ───────────────   │   ─────────────────────               │
-│   Ollama            │   OpenRouter (free tiers)             │
-│   LM Studio         │   GPT-4o-mini (~$0.15/1M)             │
-│   llama.cpp         │   Haiku, Groq, Together.ai            │
-└─────────────────────────────────────────────────────────────┘
+                              ▲
+                              │ Intelligence
+                              │ Cost
+                        ┌─────┴─────┐
+                        │ FRONTIER  │  ← Claude Code lives here
+                        │  Opus/GPT-4│    (Reasoning, strategy)
+                        ├───────────┤
+                        │  MID-TIER │
+                        │ Sonnet/4o │
+                        ├───────────┤
+                        │ EFFICIENT │
+                        │Haiku/Mini │
+                        ├───────────┤
+                        │   SMALL   │  ← Minions live here
+                        │  7b-14b   │    (Mechanical execution)
+                        ├───────────┤
+                        │   TINY    │
+                        │  1.5b-3b  │
+                        └─────┬─────┘
+                              │
+            ┌─────────────────┼─────────────────┐
+            │                 │                 │
+         LOCAL               │              CLOUD
+       (Private)             │            (Cheap)
+            │                 │                 │
+      ┌─────┴─────┐          │          ┌─────┴─────┐
+      │  Ollama   │          │          │OpenRouter │
+      │ LM Studio │          │          │ 4o-mini   │
+      │ llama.cpp │          │          │  Groq     │
+      └───────────┘          │          └───────────┘
+                              │
+                    Both are valid.
+                    Pick based on needs.
 ```
+
+**The insight:** The pyramid has two halves — local and cloud. Minions operate at the bottom of the pyramid on either side. The top is reserved for reasoning.
 
 Like Gru and his Minions: Gru handles the master plan, Minions handle the grunt work.
-
-**The split isn't local vs cloud. It's reasoning vs execution, expensive vs cheap.**
 
 **Claude always classifies the task. Minions never self-select work.**
 
