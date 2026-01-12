@@ -101,6 +101,8 @@ patch -p1 < sessions/*.patch
 | `/minion-setup` | Check Ollama, models, dependencies |
 | `/minion-patch` | Generate patch for single file (<500 lines) |
 | `/minion-swarm` | Batch patch multiple files in parallel |
+| `/minion-polish` | Auto-apply docstrings, types, cleanup |
+| `/minion-sweep` | Scan codebase and batch-fix missing docs |
 | `/minion-apply` | Review and apply patches safely |
 | `/minion-models` | Pull/list Ollama models |
 | `/minion-metrics` | View session stats |
